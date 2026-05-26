@@ -409,9 +409,14 @@ export default function CatalogPage() {
       if (maxPrice) params.set("price_max", maxPrice);
       if (yearFrom) params.set("year_from", yearFrom);
       if (yearTo) params.set("year_to", yearTo);
-      if (fuelFilter) params.set("fuel_type", fuelFilter);
-      if (transFilter) params.set("transmission", transFilter);
+      // Apibara: fuel_type[]=Gasoline, transmission[]=Automatic (array syntax)
+      if (fuelFilter) params.append("fuel_type[]", fuelFilter);
+      if (transFilter) params.append("transmission[]", transFilter);
+      // run_cond: valoarea exactă din Apibara (RUNS AND DRIVES / STATIONARY)
       if (condFilter) params.set("run_cond", condFilter);
+      // sale_document_type: "clean" pentru titlu curat
+      if (titleFilter === "clean") params.set("sale_document_type", "clean");
+      else if (titleFilter === "salvage") params.set("sale_document_type", "salvage");
       params.set("per_page", String(PER_PAGE));
       params.set("lot_sub_status", "Open");
 
@@ -423,37 +428,7 @@ export default function CatalogPage() {
       const data = await res.json();
 
       const rawList: unknown[] = data.data ?? data.vehicles ?? data.lots ?? data.results ?? [];
-      let mappedVehicles = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
-
-      // Filtrare client-side ca backup (în caz că Apibara ignoră anumiți parametri)
-      if (titleFilter !== "all") {
-        mappedVehicles = mappedVehicles.filter((v) =>
-          titleFilter === "clean"
-            ? v.titleType.toLowerCase().includes("clean")
-            : !v.titleType.toLowerCase().includes("clean")
-        );
-      }
-      if (fuelFilter) {
-        mappedVehicles = mappedVehicles.filter((v) =>
-          v.fuelType.toLowerCase().includes(fuelFilter.toLowerCase()) ||
-          (fuelFilter === "gas" && (v.fuelType.toLowerCase().includes("gasoline") || v.fuelType.toLowerCase().includes("gas"))) ||
-          (fuelFilter === "hybrid" && v.fuelType.toLowerCase().includes("hybrid")) ||
-          (fuelFilter === "electric" && v.fuelType.toLowerCase().includes("electric")) ||
-          (fuelFilter === "diesel" && v.fuelType.toLowerCase().includes("diesel"))
-        );
-      }
-      if (transFilter) {
-        mappedVehicles = mappedVehicles.filter((v) =>
-          v.transmission.toLowerCase().includes(transFilter.toLowerCase())
-        );
-      }
-      if (condFilter) {
-        mappedVehicles = mappedVehicles.filter((v) =>
-          condFilter === "run"
-            ? v.runCondition.toLowerCase().includes("runs")
-            : v.runCondition.toLowerCase().includes("stationary") || v.runCondition.toLowerCase().includes("static")
-        );
-      }
+      const mappedVehicles = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
 
       const tot = Number(data.meta?.total ?? data.total ?? rawList.length);
       const pages = Math.max(1, Math.ceil(tot / PER_PAGE) || 1);
@@ -620,10 +595,10 @@ export default function CatalogPage() {
               <span className="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" />
               <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">Combustibil:</span>
               {[
-                { label: "Benzină", val: "gas" },
-                { label: "Diesel", val: "diesel" },
-                { label: "Electric", val: "electric" },
-                { label: "Hibrid", val: "hybrid" },
+                { label: "Benzină", val: "Gasoline" },
+                { label: "Diesel", val: "Diesel" },
+                { label: "Electric", val: "Electric" },
+                { label: "Hibrid", val: "Hybrid" },
               ].map(({ label, val }) => (
                 <Chip key={val} active={fuelFilter === val} onClick={() => { setFuelFilter(fuelFilter === val ? "" : val); resetPage(); }}>
                   {label}
@@ -633,8 +608,8 @@ export default function CatalogPage() {
               <span className="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" />
               <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">Transmisie:</span>
               {[
-                { label: "Automată", val: "automatic" },
-                { label: "Manuală", val: "manual" },
+                { label: "Automată", val: "Automatic" },
+                { label: "Manuală", val: "Manual" },
               ].map(({ label, val }) => (
                 <Chip key={val} active={transFilter === val} onClick={() => { setTransFilter(transFilter === val ? "" : val); resetPage(); }}>
                   {label}
@@ -644,8 +619,8 @@ export default function CatalogPage() {
               <span className="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" />
               <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">Stare:</span>
               {[
-                { label: "Pornește și merge", val: "run" },
-                { label: "Staționar", val: "stationary" },
+                { label: "Pornește și merge", val: "RUNS AND DRIVES" },
+                { label: "Staționar", val: "STATIONARY" },
               ].map(({ label, val }) => (
                 <Chip key={val} active={condFilter === val} onClick={() => { setCondFilter(condFilter === val ? "" : val); resetPage(); }}>
                   {label}
