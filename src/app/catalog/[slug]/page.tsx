@@ -61,32 +61,78 @@ interface VehicleDetail {
 }
 
 // ── API mapper ─────────────────────────────────────────────────────────────────
+// Bazat pe raspunsul REAL apibara (confirmat browser):
+// nested: media.thumbs, pricing.current_bid_usd, condition.run_condition={label},
+// vehicle_specs.engine={raw}, location={display,state}, odometer={mi,km}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDetailVehicle(v: any): VehicleDetail {
-  const src = (v.auction_type || v.platform || v.source || v.type || "copart").toLowerCase();
-  const platform: "copart" | "iaai" = src.includes("iaai") ? "iaai" : "copart";
-  const lotNumber = String(v.lot_number || v.lot || v.lot_id || "");
-  const vin = v.vin || "";
-  const slug = v.slug || vin || lotNumber;
+  const platformId = Number(v.platform_id ?? 0);
+  const platformStr = String(v.platform || "").toLowerCase();
+  const platform: "copart" | "iaai" =
+    platformId === 2 || platformStr.includes("iaai") ? "iaai" : "copart";
 
-  const rawImages = v.images || v.photos || [];
-  const images: string[] =
-    Array.isArray(rawImages) && rawImages.length > 0
-      ? rawImages.map((img: unknown) =>
-          typeof img === "string" ? img : (img as { url?: string })?.url || ""
-        )
-      : v.image
-        ? [v.image]
-        : [];
+  const lotNumber = String(v.lot_number || v.lot || "");
+  const vin = String(v.vin || "");
+  const slug = String(v.slug_vin || v.slug || vin || lotNumber);
 
-  const bid = Number(v.current_bid ?? v.bid_amount ?? v.estimated_bid ?? 0);
-  const runDrive = v.run_drive ?? v.run_and_drive;
-  const runCondition =
-    runDrive === true
-      ? "Runs and Drives"
-      : runDrive === false
-        ? "Stationary"
-        : v.run_condition || "Unknown";
+  // Imagini: media.thumbs = array de URL string-uri
+  const media = v.media || {};
+  let images: string[] = [];
+  if (Array.isArray(media.thumbs)) {
+    images = (media.thumbs as unknown[]).filter((s): s is string => typeof s === "string");
+  } else if (Array.isArray(media.items)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    images = (media.items as any[]).map((i) => String(i.full || i.large || i.thumb || "")).filter(Boolean);
+  }
+
+  // Pret: pricing.current_bid_usd
+  const pricing = v.pricing || {};
+  const bid = Number(pricing.current_bid_usd ?? pricing.current_bid2_usd ?? pricing.buy_now_usd ?? 0);
+  const buyNow = pricing.buy_now_usd ? Number(pricing.buy_now_usd) : undefined;
+
+  // Conditie: run_condition este OBIECT {value, label}
+  const condition = v.condition || {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rcObj = condition.run_condition as any;
+  const runCondition = rcObj && typeof rcObj === "object"
+    ? String(rcObj.label || rcObj.value || "Unknown")
+    : String(rcObj || "Unknown");
+
+  // Specs: engine este OBIECT {raw, size_l}
+  const specs = v.vehicle_specs || {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const engObj = specs.engine as any;
+  const engine = engObj && typeof engObj === "object"
+    ? String(engObj.raw || (engObj.size_l ? `${engObj.size_l}L` : "") || "")
+    : (engObj ? String(engObj) : undefined);
+
+  // Locatie: location={display, state}
+  const locRaw = v.location;
+  const locationDisplay = !locRaw ? "" : typeof locRaw === "string" ? locRaw : String(locRaw.display || "");
+  const state = !locRaw || typeof locRaw === "string" ? "" : String(locRaw.state || "");
+
+  // Odometru: odometer={mi, km}
+  const odoObj = v.odometer || {};
+  const odometer = typeof odoObj === "number" ? odoObj : Number(odoObj.mi ?? odoObj.km ?? 0);
+  const odometerUnit = odoObj.km !== undefined && odoObj.mi === undefined ? "km" : "mi";
+
+  // Sale document, daune, seller
+  const saleDoc = v.sale_document || {};
+  const titleType = String(saleDoc.name || "Salvage Title");
+  const damage = String(condition.primary_damage || condition.loss || "");
+  const secondaryDamage = condition.secondary_damage ? String(condition.secondary_damage) : undefined;
+  const hasKey = condition.has_key === true || condition.has_key === "With";
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sellerObj = v.seller as any;
+  const seller = sellerObj && typeof sellerObj === "object"
+    ? String(sellerObj.name || "")
+    : (sellerObj ? String(sellerObj) : undefined);
+
+  // Auction date
+  const auction = v.auction || {};
+  const auctionDateRaw = auction.full_date || auction.date || v.auction_date || "";
+  const auctionDate = auctionDateRaw ? String(auctionDateRaw) : undefined;
 
   return {
     slug,
@@ -94,37 +140,34 @@ function mapDetailVehicle(v: any): VehicleDetail {
     lotNumber,
     vin,
     year: Number(v.year) || 0,
-    make: v.make || "",
-    model: v.model || "",
-    trim: v.trim || undefined,
-    color: v.color || v.primary_color || undefined,
-    odometer: Number(v.odometer) || 0,
-    odometerUnit: v.odometer_unit || v.odometer_type || "mi",
-    titleType: v.title_type || v.title || "Salvage Title",
-    damage: v.primary_damage || v.damage || "",
-    secondaryDamage: v.secondary_damage || undefined,
+    make: String(v.make || ""),
+    model: String(v.model || ""),
+    trim: v.trim ? String(v.trim) : undefined,
+    color: specs.exterior_color ? String(specs.exterior_color) : undefined,
+    odometer,
+    odometerUnit,
+    titleType,
+    damage,
+    secondaryDamage,
     estimatedBid: bid,
-    buyNow: v.buy_now_price ? Number(v.buy_now_price) : undefined,
-    auctionDate: v.sale_date || v.auction_date || undefined,
-    location: v.location || v.yard || "",
-    state: v.state || v.state_code || "",
+    buyNow,
+    auctionDate,
+    location: locationDisplay,
+    state,
     images,
-    hasKey: v.has_keys ?? v.has_key ?? true,
-    fuelType: v.fuel || v.fuel_type || "Gasoline",
-    transmission: v.transmission || "Automatic",
-    engine: v.engine || v.engine_size || undefined,
-    cylinders: v.cylinders || undefined,
-    driveType: v.drive_type || v.drive || undefined,
-    bodyType: v.body_type || v.body || undefined,
-    seller: v.seller || v.seller_name || undefined,
-    airbags: v.airbags || v.airbag_status || undefined,
+    hasKey,
+    fuelType: String(specs.fuel_type || "Gasoline"),
+    transmission: String(specs.transmission || "Automatic"),
+    engine: engine || undefined,
+    cylinders: specs.cylinders ? String(specs.cylinders) : undefined,
+    driveType: specs.drive_type ? String(specs.drive_type) : undefined,
+    bodyType: specs.body_style ? String(specs.body_style) : undefined,
+    seller: seller || undefined,
+    airbags: specs.airbags ? String(specs.airbags) : undefined,
     runCondition,
-    auctionUrl:
-      v.auction_url ||
-      v.lot_url ||
-      (platform === "iaai"
-        ? `https://www.iaai.com/vehauto/${lotNumber}`
-        : `https://www.copart.com/lot/${lotNumber}`),
+    auctionUrl: platform === "iaai"
+      ? `https://www.iaai.com/vehauto/${lotNumber}`
+      : `https://www.copart.com/lot/${lotNumber}`,
   };
 }
 
