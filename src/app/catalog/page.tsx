@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -634,8 +634,6 @@ function SkeletonCard() {
   );
 }
 
-const TRANS_RO: Record<string, string> = { "Automatic": "Automată", "Manual": "Manuală", "CVT": "CVT" };
-
 // ── Main Page ──────────────────────────────────────────────────────────────────
 export default function CatalogPage() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
@@ -648,7 +646,6 @@ export default function CatalogPage() {
   const [filtersMeta, setFiltersMeta] = useState<FiltersMeta>({ makes: [], vehicle_types: [], fuel_types: [], transmissions: [], drive_types: [], run_conditions: [], damages: [], colors: [], cylinders: [] });
   const [filtersLoading, setFiltersLoading] = useState(true);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
-  const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   const PER_PAGE = 12;
 
   // Incarc filtrele de la Apibara
