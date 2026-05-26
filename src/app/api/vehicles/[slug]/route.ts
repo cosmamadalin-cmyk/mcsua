@@ -5,9 +5,9 @@ const BASE_URL = "https://apibara.tech/api/v1/vehicle-auction";
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { slug: string } }
+  { params }: { params: Promise<{ slug: string }> }
 ) {
-  const { slug } = params;
+  const { slug } = await params;
 
   try {
     const response = await fetch(`${BASE_URL}/vehicles/${slug}`, {
