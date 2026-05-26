@@ -57,81 +57,79 @@ export interface Vehicle {
 }
 
 // ── API response mapper ────────────────────────────────────────────────────────
-// Apibara răspunde cu structură nested conform documentației:
-// slug_vin, platform_id (1=Copart,2=IAAI), pricing.current_bid,
-// media.images[], condition.*, vehicle_specs.*, sale_document.name, etc.
+// Bazat pe răspunsul REAL confirmat din browser:
+// media.thumbs=string[], pricing.current_bid_usd, condition.run_condition={value,label},
+// vehicle_specs.engine={raw,size_l}, location={display,send_from,state}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapApiVehicle(v: any): Vehicle {
-  // Platform: platform_id 1=Copart, 2=IAAI; sau string platform
+  // Platform
   const platformId = Number(v.platform_id ?? 0);
-  const platformStr = (v.platform || v.auction_type || v.source || "").toLowerCase();
+  const platformStr = String(v.platform || "").toLowerCase();
   const platform: "copart" | "iaai" =
     platformId === 2 || platformStr.includes("iaai") ? "iaai" : "copart";
 
-  const lotNumber = String(v.lot_number || v.lot || v.lot_id || "");
-  const vin = v.vin || "";
+  const lotNumber = String(v.lot_number || v.lot || "");
+  const vin = String(v.vin || "");
+  const slug = String(v.slug_vin || v.slug || vin || lotNumber);
 
-  // slug_vin este identificatorul unic din apibara (ex: "2021-bmw-x5-5UXCR6C02M9D12345")
-  const slug = v.slug_vin || v.slug || vin || lotNumber || v.id;
-
-  // Imagini: media.images[] sau media.image_urls[] sau flat images[]
+  // Imagini: media.thumbs = array de URL string-uri (câmpul REAL din API)
   const media = v.media || {};
-  const rawImages =
-    media.images || media.image_urls || media.photos ||
-    v.images || v.photos || [];
-  const images: string[] = Array.isArray(rawImages)
-    ? rawImages
-        .map((img: unknown) =>
-          typeof img === "string" ? img : (img as { url?: string; src?: string })?.url || (img as { src?: string })?.src || ""
-        )
-        .filter(Boolean)
-    : v.image ? [v.image] : [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let images: string[] = [];
+  if (Array.isArray(media.thumbs)) {
+    images = (media.thumbs as unknown[]).filter((s): s is string => typeof s === "string");
+  } else if (Array.isArray(media.items)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    images = (media.items as any[]).map((i) => String(i.full || i.large || i.thumb || "")).filter(Boolean);
+  }
 
-  // Preț: pricing.current_bid sau flat current_bid
+  // Preț: pricing.current_bid_usd (poate fi null) → buy_now_usd
   const pricing = v.pricing || {};
-  const bid = Number(
-    pricing.current_bid ?? pricing.buy_now_price ??
-    v.current_bid ?? v.bid_amount ?? v.estimated_bid ?? 0
-  );
-  const buyNow = pricing.buy_now_price ? Number(pricing.buy_now_price) : v.buy_now_price ? Number(v.buy_now_price) : undefined;
+  const bid = Number(pricing.current_bid_usd ?? pricing.current_bid2_usd ?? pricing.buy_now_usd ?? 0);
+  const buyNow = pricing.buy_now_usd ? Number(pricing.buy_now_usd) : undefined;
 
-  // Condiție: condition.*
+  // Condiție: condition.run_condition este OBIECT {value, label, class_hint}
   const condition = v.condition || {};
-  const runCondRaw = condition.run_condition || v.run_condition || v.run_drive || "";
-  const runCondition = typeof runCondRaw === "boolean"
-    ? (runCondRaw ? "Runs and Drives" : "Stationary")
-    : String(runCondRaw || "Unknown");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rcObj = condition.run_condition as any;
+  const runCondition = rcObj && typeof rcObj === "object"
+    ? String(rcObj.label || rcObj.value || "Unknown")
+    : String(rcObj || "Unknown");
 
-  // Specificații: vehicle_specs.*
+  // Specs: vehicle_specs.engine este OBIECT {raw, size_l, hp, layout}
   const specs = v.vehicle_specs || {};
-  const fuelType = specs.fuel_type || v.fuel || v.fuel_type || "Gasoline";
-  const transmission = specs.transmission || v.transmission || "Automatic";
-  const engine = specs.engine || specs.engine_size || v.engine || undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const engObj = specs.engine as any;
+  const engine = engObj && typeof engObj === "object"
+    ? String(engObj.raw || (engObj.size_l ? `${engObj.size_l}L` : "") || "")
+    : (engObj ? String(engObj) : undefined);
+  const fuelType = String(specs.fuel_type || "Gasoline");
+  const transmission = String(specs.transmission || "Automatic");
 
-  // Titlu vehicul: sale_document.name sau title_type
+  // Sale document
   const saleDoc = v.sale_document || {};
-  const titleType = saleDoc.name || saleDoc.type || v.title_type || v.title || "Salvage Title";
+  const titleType = String(saleDoc.name || "Salvage Title");
 
-  // Daune: condition.loss sau primary_damage
-  const damage = condition.loss || v.primary_damage || v.damage || "";
+  // Daune: condition.primary_damage (nu condition.loss care e null)
+  const damage = String(condition.primary_damage || condition.loss || "");
 
-  // Locație: location.display sau flat location
-  const loc = v.location || {};
-  const locationDisplay = typeof loc === "string" ? loc : loc.display || loc.city || v.yard || "";
-  const state = loc.state || v.state || v.state_code || "";
+  // Locație: location={display,send_from,state} — extragem doar string-uri
+  const locRaw = v.location;
+  const locationDisplay = !locRaw ? "" : typeof locRaw === "string" ? locRaw : String(locRaw.display || "");
+  const state = !locRaw || typeof locRaw === "string" ? "" : String(locRaw.state || "");
 
-  // Odometru: odometer.mi sau odometer.km
+  // Odometru
   const odoObj = v.odometer || {};
-  const odometer = typeof odoObj === "number" ? odoObj
-    : Number(odoObj.mi ?? odoObj.km ?? v.odometer_value ?? v.odometer ?? 0);
+  const odometer = typeof odoObj === "number" ? odoObj : Number(odoObj.mi ?? odoObj.km ?? 0);
   const odometerUnit = odoObj.km !== undefined && odoObj.mi === undefined ? "km" : "mi";
 
-  // Chei: condition.key
-  const hasKey = condition.key === "With" || condition.key === true || v.has_keys ?? v.has_key ?? true;
+  // Chei: condition.has_key este boolean în răspunsul real
+  const hasKey = condition.has_key === true || condition.has_key === "With";
 
-  // Data licitație: auction.date sau sale_date
+  // Data licitație: auction.full_date
   const auction = v.auction || {};
-  const auctionDate = auction.date || auction.sale_date || v.sale_date || v.auction_date || undefined;
+  const auctionDateRaw = auction.full_date || auction.date || v.auction_date || "";
+  const auctionDate = auctionDateRaw ? String(auctionDateRaw) : undefined;
 
   return {
     id: String(v.id || lotNumber || vin || Math.random()),
@@ -140,10 +138,10 @@ function mapApiVehicle(v: any): Vehicle {
     lotNumber,
     vin,
     year: Number(v.year) || 0,
-    make: v.make || "",
-    model: v.model || "",
-    trim: v.trim || undefined,
-    color: specs.color || v.color || v.primary_color || undefined,
+    make: String(v.make || ""),
+    model: String(v.model || ""),
+    trim: v.trim ? String(v.trim) : undefined,
+    color: specs.exterior_color ? String(specs.exterior_color) : undefined,
     odometer,
     odometerUnit,
     titleType,
@@ -157,13 +155,11 @@ function mapApiVehicle(v: any): Vehicle {
     hasKey,
     fuelType,
     transmission,
-    engine,
+    engine: engine || undefined,
     runCondition,
-    auctionUrl:
-      v.auction_url || v.lot_url ||
-      (platform === "iaai"
-        ? `https://www.iaai.com/vehauto/${lotNumber}`
-        : `https://www.copart.com/lot/${lotNumber}`),
+    auctionUrl: platform === "iaai"
+      ? `https://www.iaai.com/vehauto/${lotNumber}`
+      : `https://www.copart.com/lot/${lotNumber}`,
   };
 }
 
@@ -559,7 +555,4 @@ export default function CatalogPage() {
               } else {
                 n = Math.max(2, Math.min(totalPages - 1, page - 2 + i));
               }
-              return n;
-            }).map((n, idx, arr) => (
-              <span key={`${n}-${idx}`} className="inline-flex items-center gap-1">
-          
+              return n
