@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const APIBARA_KEY = process.env.APIBARA_API_KEY ?? "";
-const BASE_URL = "https://apibara.tech/api/v1";
+const BASE_URL = "https://apibara.tech/api/v1/vehicle-auction";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -26,4 +26,4 @@ export async function GET(request: NextRequest) {
   // else nu setăm = All
 
   // Filtre standard
-  if (searchParams.get("make")) params.set("make", sear
+  if (searchParams.get("make")) params.
