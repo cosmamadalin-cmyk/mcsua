@@ -100,31 +100,43 @@ function mapApiVehicle(v: any): Vehicle {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function parseFiltersMeta(data: any): FiltersMeta {
+function parseFiltersMeta(raw: any): FiltersMeta {
+  console.log("[filters] raw keys:", raw ? Object.keys(raw) : "null");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function toStrArr(arr: any[]): string[] {
+  const data: any = raw?.data ?? raw ?? {};
+  console.log("[filters] data keys:", Object.keys(data));
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function toStrArr(arr: unknown): string[] {
     if (!Array.isArray(arr)) return [];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return arr.map((x: any) => String(x?.name ?? x?.value ?? x?.label ?? x)).filter(Boolean);
+    return (arr as any[]).map((x: any) => String(x?.name ?? x?.value ?? x?.label ?? x)).filter(Boolean);
   }
-  const rawMakes = data?.makes ?? data?.data?.makes ?? [];
+
+  const rawMakes: unknown =
+    data?.makes ?? data?.vehicle_makes ?? data?.filters?.makes ?? data?.meta?.makes ?? [];
+
+  console.log("[filters] makes:", Array.isArray(rawMakes) ? rawMakes.length : "not array",
+    Array.isArray(rawMakes) && rawMakes.length > 0 ? JSON.stringify(rawMakes[0]).slice(0, 100) : "");
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const makes: MakeOption[] = Array.isArray(rawMakes) ? rawMakes.map((m: any) => ({
-    name: String(m.name || m.make || m.value || m),
+  const makes: MakeOption[] = Array.isArray(rawMakes) ? (rawMakes as any[]).map((m: any) => ({
+    name: String(m?.name ?? m?.make ?? m?.value ?? m ?? ""),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    models: Array.isArray(m.models) ? m.models.map((mo: any) => String(mo.name || mo.model || mo.value || mo)) : [],
+    models: Array.isArray(m?.models) ? (m.models as any[]).map((mo: any) => String(mo?.name ?? mo?.model ?? mo?.value ?? mo ?? "")).filter(Boolean) : [],
   })).filter((m) => m.name).sort((a, b) => a.name.localeCompare(b.name)) : [];
-  const extra = data?.extra_filters ?? data?.filters ?? data ?? {};
+
+  const extra = data?.extra_filters ?? data?.filters ?? data?.options ?? data ?? {};
   return {
     makes,
-    vehicle_types: toStrArr(extra?.types ?? extra?.vehicle_types ?? []),
-    fuel_types: toStrArr(extra?.fuel_types ?? extra?.fuel_type ?? []),
+    vehicle_types: toStrArr(extra?.types ?? extra?.vehicle_types ?? extra?.type ?? []),
+    fuel_types: toStrArr(extra?.fuel_types ?? extra?.fuel_type ?? extra?.fuels ?? []),
     transmissions: toStrArr(extra?.transmissions ?? extra?.transmission ?? []),
-    drive_types: toStrArr(extra?.drive_types ?? extra?.drive_type ?? []),
-    run_conditions: toStrArr(extra?.run_conditions ?? extra?.run_condition ?? []),
+    drive_types: toStrArr(extra?.drive_types ?? extra?.drive_type ?? extra?.drives ?? []),
+    run_conditions: toStrArr(extra?.run_conditions ?? extra?.run_condition ?? extra?.conditions ?? []),
     damages: toStrArr(extra?.damages ?? extra?.damage ?? []),
     colors: toStrArr(extra?.colors ?? extra?.color ?? []),
-    cylinders: toStrArr(extra?.cylinders ?? []),
+    cylinders: toStrArr(extra?.cylinders ?? extra?.cylinder ?? []),
   };
 }
 

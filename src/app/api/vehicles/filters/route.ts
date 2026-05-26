@@ -10,10 +10,11 @@ export async function GET() {
         "X-API-Key": APIBARA_KEY,
         "Content-Type": "application/json",
       },
-      next: { revalidate: 3600 }, // cache 1 ora — lista de marci nu se schimba des
+      next: { revalidate: 3600 },
     });
 
     if (!response.ok) {
+      console.error("Filters API error:", response.status);
       return NextResponse.json(
         { error: `Apibara filters error: ${response.status}` },
         { status: response.status }
@@ -21,12 +22,12 @@ export async function GET() {
     }
 
     const data = await response.json();
+    // Log top-level keys to help debug structure
+    console.log("Filters API top-level keys:", Object.keys(data));
+    if (data?.data) console.log("data.data keys:", Object.keys(data.data));
     return NextResponse.json(data);
   } catch (error) {
     console.error("Filters API error:", error);
-    return NextResponse.json(
-      { error: "Nu s-au putut incarca filtrele" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Nu s-au putut incarca filtrele" }, { status: 500 });
   }
 }
