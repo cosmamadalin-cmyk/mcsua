@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Search,
   Car,
@@ -21,6 +20,8 @@ import {
   ExternalLink,
   Zap,
   Info,
+  ChevronDown,
+  X,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -56,7 +57,21 @@ export interface Vehicle {
   auctionUrl: string;
 }
 
-// ── API response mapper ─────────────────────────────────────────────────────────
+interface MakeOption {
+  name: string;
+  models: string[];
+}
+
+interface FiltersMeta {
+  makes: MakeOption[];
+  fuel_types: string[];
+  transmissions: string[];
+  drive_types: string[];
+  run_conditions: string[];
+  damages: string[];
+}
+
+// ── API mapper ──────────────────────────────────────────────────────────────────
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapApiVehicle(v: any): Vehicle {
   const platformId = Number(v.platform_id ?? 0);
@@ -117,28 +132,16 @@ function mapApiVehicle(v: any): Vehicle {
 
   return {
     id: String(v.id || lotNumber || vin || Math.random()),
-    slug,
-    platform,
-    lotNumber,
-    vin,
+    slug, platform, lotNumber, vin,
     year: Number(v.year) || 0,
     make: String(v.make || ""),
     model: String(v.model || ""),
     trim: v.trim ? String(v.trim) : undefined,
     color: specs.exterior_color ? String(specs.exterior_color) : undefined,
-    odometer,
-    odometerUnit,
-    titleType,
-    damage,
-    estimatedBid: bid,
-    buyNow,
-    auctionDate,
-    location: locationDisplay,
-    state,
-    images,
-    hasKey,
-    fuelType,
-    transmission,
+    odometer, odometerUnit, titleType, damage,
+    estimatedBid: bid, buyNow, auctionDate,
+    location: locationDisplay, state, images, hasKey,
+    fuelType, transmission,
     engine: engine || undefined,
     runCondition,
     auctionUrl: platform === "iaai"
@@ -147,24 +150,56 @@ function mapApiVehicle(v: any): Vehicle {
   };
 }
 
+// ── Parse filters from Apibara /vehicles/filters ────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseFiltersMeta(data: any): FiltersMeta {
+  // Makes + models grouped
+  let makes: MakeOption[] = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawMakes = data?.makes ?? data?.data?.makes ?? [];
+  if (Array.isArray(rawMakes)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    makes = rawMakes.map((m: any) => ({
+      name: String(m.name || m.make || m.value || m),
+      models: Array.isArray(m.models)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? m.models.map((mo: any) => String(mo.name || mo.model || mo.value || mo))
+        : [],
+    })).filter((m) => m.name).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function extractStrings(arr: any[]): string[] {
+    if (!Array.isArray(arr)) return [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return arr.map((x: any) => String(x?.name ?? x?.value ?? x?.label ?? x)).filter(Boolean);
+  }
+
+  const extra = data?.extra_filters ?? data?.filters ?? data ?? {};
+  return {
+    makes,
+    fuel_types: extractStrings(extra?.fuel_types ?? extra?.fuel_type ?? []),
+    transmissions: extractStrings(extra?.transmissions ?? extra?.transmission ?? []),
+    drive_types: extractStrings(extra?.drive_types ?? extra?.drive_type ?? []),
+    run_conditions: extractStrings(extra?.run_conditions ?? extra?.run_condition ?? []),
+    damages: extractStrings(extra?.damages ?? extra?.damage ?? []),
+  };
+}
+
 // ── Traduceri română ──────────────────────────────────────────────────────────
-function tFuel(v: string): string {
-  const m: Record<string, string> = {
-    "Gas": "Benzină", "Gasoline": "Benzină", "gas": "Benzină",
-    "Diesel": "Diesel", "diesel": "Diesel",
-    "Electric": "Electric", "electric": "Electric",
-    "Hybrid": "Hibrid", "hybrid": "Hibrid",
-    "Flexible": "Flex", "flexible": "Flex",
-  };
-  return m[v] || v;
-}
-function tTransmission(v: string): string {
-  const m: Record<string, string> = {
-    "Automatic": "Automată", "Manual": "Manuală", "manual": "Manuală",
-    "automatic": "Automată",
-  };
-  return m[v] || v;
-}
+const FUEL_RO: Record<string, string> = {
+  "Gasoline": "Benzină", "Gas": "Benzină",
+  "Diesel": "Diesel", "Electric": "Electric",
+  "Hybrid": "Hibrid", "Flex": "Flex",
+};
+const TRANS_RO: Record<string, string> = {
+  "Automatic": "Automată", "Manual": "Manuală", "CVT": "CVT",
+};
+const DRIVE_RO: Record<string, string> = {
+  "AWD": "AWD", "FWD": "FWD", "RWD": "RWD", "4WD": "4WD",
+};
+function tFuel(v: string) { return FUEL_RO[v] || v; }
+function tTransmission(v: string) { return TRANS_RO[v] || v; }
 function tCondition(v: string): string {
   const vl = v.toLowerCase();
   if (vl.includes("runs")) return "Pornește și merge";
@@ -173,21 +208,45 @@ function tCondition(v: string): string {
   return v;
 }
 
-// ── Chip button helper ─────────────────────────────────────────────────────────
-function Chip({
-  active,
-  onClick,
-  children,
+// ── Styled Select ──────────────────────────────────────────────────────────────
+function FilterSelect({
+  value, onChange, placeholder, options, disabled,
 }: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  options: { label: string; value: string }[];
+  disabled?: boolean;
+}) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        className={`appearance-none h-9 pl-3 pr-8 text-sm border rounded-xl bg-white transition-colors cursor-pointer w-full
+          ${value ? "border-accent text-primary font-medium" : "border-slate-200 text-slate-500"}
+          ${disabled ? "opacity-40 cursor-not-allowed" : "hover:border-slate-300"}`}
+      >
+        <option value="">{placeholder}</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+    </div>
+  );
+}
+
+// ── Chip button ────────────────────────────────────────────────────────────────
+function Chip({ active, onClick, children }: {
+  active: boolean; onClick: () => void; children: React.ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+      className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold border transition-all flex-shrink-0 ${
         active
           ? "bg-accent text-white border-accent"
           : "bg-white text-slate-600 border-slate-200 hover:border-accent hover:text-accent"
@@ -198,15 +257,25 @@ function Chip({
   );
 }
 
+// ── Active filter badge ────────────────────────────────────────────────────────
+function ActiveBadge({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 bg-accent/10 text-accent border border-accent/20 rounded-full px-2.5 py-1 text-xs font-semibold">
+      {label}
+      <button type="button" onClick={onRemove} className="hover:text-red-500 transition-colors">
+        <X className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
 // ── Title badge ────────────────────────────────────────────────────────────────
 function TitleBadge({ type }: { type: string }) {
   const isClean = type?.toLowerCase().includes("clean");
   return (
-    <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
-        isClean ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
-      }`}
-    >
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${
+      isClean ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"
+    }`}>
       {isClean ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
       {type}
     </span>
@@ -216,25 +285,23 @@ function TitleBadge({ type }: { type: string }) {
 // ── Platform badge ─────────────────────────────────────────────────────────────
 function PlatformBadge({ platform }: { platform: "copart" | "iaai" }) {
   return (
-    <span
-      className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-        platform === "copart" ? "bg-blue-600 text-white" : "bg-red-600 text-white"
-      }`}
-    >
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
+      platform === "copart" ? "bg-blue-600 text-white" : "bg-red-600 text-white"
+    }`}>
       {platform === "copart" ? "Copart" : "IAAI"}
     </span>
   );
 }
 
-// ── Vehicle card — layout tip listă ───────────────────────────────────────────
+// ── Vehicle card — list layout ─────────────────────────────────────────────────
 function VehicleCard({ v }: { v: Vehicle }) {
   const [imgError, setImgError] = useState(false);
 
   return (
     <Card className="border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
       <div className="flex flex-row">
-        {/* Imagine stânga — 200px fix */}
-        <Link href={`/catalog/${v.slug}`} className="block flex-shrink-0 relative w-48 sm:w-52">
+        {/* Imagine stânga */}
+        <Link href={`/catalog/${v.slug}`} className="block flex-shrink-0 relative w-48 sm:w-56">
           <div className="h-full min-h-[148px] bg-slate-100 overflow-hidden relative">
             {!imgError && v.images[0] ? (
               <img
@@ -248,17 +315,13 @@ function VehicleCard({ v }: { v: Vehicle }) {
                 <Car className="h-10 w-10 text-slate-300" />
               </div>
             )}
-            {/* Badges overlay */}
-            <div className="absolute top-2 left-2 flex flex-col gap-1">
+            <div className="absolute top-2 left-2">
               <PlatformBadge platform={v.platform} />
             </div>
             {v.auctionDate && (
-              <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
+              <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
                 <Calendar className="h-2.5 w-2.5" />
-                {new Date(v.auctionDate).toLocaleDateString("ro-RO", {
-                  day: "2-digit",
-                  month: "short",
-                })}
+                {new Date(v.auctionDate).toLocaleDateString("ro-RO", { day: "2-digit", month: "short" })}
               </div>
             )}
           </div>
@@ -266,18 +329,15 @@ function VehicleCard({ v }: { v: Vehicle }) {
 
         {/* Detalii dreapta */}
         <CardContent className="flex-1 py-3 px-4 flex flex-col justify-between min-w-0">
-          {/* Rând 1: titlu + titlu tip */}
           <div className="flex items-start justify-between gap-2 mb-1">
             <Link href={`/catalog/${v.slug}`} className="hover:text-accent transition-colors min-w-0">
               <h3 className="font-bold text-sm sm:text-base text-primary leading-tight truncate">
-                {v.year} {v.make} {v.model}
-                {v.trim ? ` ${v.trim}` : ""}
+                {v.year} {v.make} {v.model}{v.trim ? ` ${v.trim}` : ""}
               </h3>
             </Link>
             <TitleBadge type={v.titleType} />
           </div>
 
-          {/* Daune */}
           {v.damage && (
             <p className="text-xs text-amber-600 font-medium mb-2 flex items-center gap-1 truncate">
               <AlertTriangle className="h-3 w-3 flex-shrink-0" />
@@ -285,7 +345,6 @@ function VehicleCard({ v }: { v: Vehicle }) {
             </p>
           )}
 
-          {/* Grid spec-uri */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3">
             <div className="flex items-center gap-1.5 text-xs text-slate-500">
               <Gauge className="h-3 w-3 flex-shrink-0 text-slate-400" />
@@ -315,7 +374,6 @@ function VehicleCard({ v }: { v: Vehicle }) {
             )}
           </div>
 
-          {/* Pret + butoane */}
           <div className="flex items-center justify-between gap-2 mt-auto">
             <div>
               <p className="text-xs text-slate-400 leading-none mb-0.5">Bid curent</p>
@@ -333,14 +391,13 @@ function VehicleCard({ v }: { v: Vehicle }) {
                 href={v.auctionUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1 text-xs text-slate-500 hover:text-accent transition-colors font-medium"
+                className="text-slate-400 hover:text-accent transition-colors"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
+                <ExternalLink className="h-4 w-4" />
               </a>
               <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-white text-xs h-8 px-3">
                 <Link href={`/catalog/${v.slug}`}>
-                  Detalii
-                  <ArrowRight className="h-3 w-3 ml-1" />
+                  Detalii <ArrowRight className="h-3 w-3 ml-1" />
                 </Link>
               </Button>
             </div>
@@ -351,18 +408,16 @@ function VehicleCard({ v }: { v: Vehicle }) {
   );
 }
 
-// ── Skeleton list ──────────────────────────────────────────────────────────────
+// ── Skeleton ───────────────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
     <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white animate-pulse flex flex-row h-[148px]">
-      <div className="w-48 sm:w-52 flex-shrink-0 bg-slate-200" />
+      <div className="w-48 sm:w-56 flex-shrink-0 bg-slate-200" />
       <div className="flex-1 p-4 space-y-2">
         <div className="h-4 bg-slate-200 rounded w-2/3" />
         <div className="h-3 bg-slate-100 rounded w-1/3" />
         <div className="grid grid-cols-2 gap-2 mt-2">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-3 bg-slate-100 rounded" />
-          ))}
+          {[1, 2, 3, 4].map((i) => <div key={i} className="h-3 bg-slate-100 rounded" />)}
         </div>
         <div className="flex justify-between items-end pt-2">
           <div className="h-5 bg-slate-200 rounded w-16" />
@@ -373,30 +428,56 @@ function SkeletonCard() {
   );
 }
 
-// ── Ani pentru select ──────────────────────────────────────────────────────────
+// ── Ani ────────────────────────────────────────────────────────────────────────
 const CURRENT_YEAR = new Date().getFullYear();
 const YEARS = Array.from({ length: CURRENT_YEAR - 1989 }, (_, i) => String(CURRENT_YEAR - i));
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function CatalogPage() {
+  // Filtre
   const [platform, setPlatform] = useState<Platform>("all");
   const [titleFilter, setTitleFilter] = useState<TitleType>("all");
   const [makeFilter, setMakeFilter] = useState("");
+  const [modelFilter, setModelFilter] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
   const [yearFrom, setYearFrom] = useState("");
   const [yearTo, setYearTo] = useState("");
   const [fuelFilter, setFuelFilter] = useState("");
   const [transFilter, setTransFilter] = useState("");
+  const [driveFilter, setDriveFilter] = useState("");
   const [condFilter, setCondFilter] = useState("");
   const [page, setPage] = useState(1);
 
+  // Date
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Metadata filtre din Apibara
+  const [filtersMeta, setFiltersMeta] = useState<FiltersMeta>({
+    makes: [], fuel_types: [], transmissions: [], drive_types: [], run_conditions: [], damages: [],
+  });
+  const [filtersLoading, setFiltersLoading] = useState(true);
+
   const PER_PAGE = 12;
+
+  // Modele disponibile pentru marca selectata
+  const availableModels = makeFilter
+    ? (filtersMeta.makes.find((m) => m.name === makeFilter)?.models ?? [])
+    : [];
+
+  // Incarc metadata filtre o singura data
+  useEffect(() => {
+    fetch("/api/vehicles/filters")
+      .then((r) => r.json())
+      .then((data) => {
+        setFiltersMeta(parseFiltersMeta(data));
+      })
+      .catch(() => {/* ignora erori filtre */})
+      .finally(() => setFiltersLoading(false));
+  }, []);
 
   const fetchVehicles = useCallback(async () => {
     setIsLoading(true);
@@ -405,16 +486,15 @@ export default function CatalogPage() {
       const params = new URLSearchParams();
       if (platform === "copart") params.set("auction_type", "1");
       else if (platform === "iaai") params.set("auction_type", "2");
-      if (makeFilter.trim()) params.set("make", makeFilter.trim().toUpperCase());
+      if (makeFilter) params.set("make", makeFilter);
+      if (modelFilter) params.set("model", modelFilter);
       if (maxPrice) params.set("price_max", maxPrice);
       if (yearFrom) params.set("year_from", yearFrom);
       if (yearTo) params.set("year_to", yearTo);
-      // Apibara: fuel_type[]=Gasoline, transmission[]=Automatic (array syntax)
       if (fuelFilter) params.append("fuel_type[]", fuelFilter);
       if (transFilter) params.append("transmission[]", transFilter);
-      // run_cond: valoarea exactă din Apibara (RUNS AND DRIVES / STATIONARY)
+      if (driveFilter) params.append("drive_type[]", driveFilter);
       if (condFilter) params.set("run_cond", condFilter);
-      // sale_document_type: "clean" pentru titlu curat
       if (titleFilter === "clean") params.set("sale_document_type", "clean");
       else if (titleFilter === "salvage") params.set("sale_document_type", "salvage");
       params.set("per_page", String(PER_PAGE));
@@ -429,7 +509,6 @@ export default function CatalogPage() {
 
       const rawList: unknown[] = data.data ?? data.vehicles ?? data.lots ?? data.results ?? [];
       const mappedVehicles = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
-
       const tot = Number(data.meta?.total ?? data.total ?? rawList.length);
       const pages = Math.max(1, Math.ceil(tot / PER_PAGE) || 1);
 
@@ -445,29 +524,45 @@ export default function CatalogPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [platform, titleFilter, makeFilter, maxPrice, yearFrom, yearTo, fuelFilter, transFilter, condFilter, page]);
+  }, [platform, titleFilter, makeFilter, modelFilter, maxPrice, yearFrom, yearTo, fuelFilter, transFilter, driveFilter, condFilter, page]);
 
-  useEffect(() => {
-    fetchVehicles();
-  }, [fetchVehicles]);
+  useEffect(() => { fetchVehicles(); }, [fetchVehicles]);
 
   const resetPage = () => setPage(1);
 
   const resetAllFilters = () => {
-    setPlatform("all");
-    setTitleFilter("all");
-    setMakeFilter("");
-    setMaxPrice("");
-    setYearFrom("");
-    setYearTo("");
-    setFuelFilter("");
-    setTransFilter("");
-    setCondFilter("");
-    setPage(1);
+    setPlatform("all"); setTitleFilter("all"); setMakeFilter(""); setModelFilter("");
+    setMaxPrice(""); setYearFrom(""); setYearTo(""); setFuelFilter("");
+    setTransFilter(""); setDriveFilter(""); setCondFilter(""); setPage(1);
   };
 
-  const hasActiveFilters = platform !== "all" || titleFilter !== "all" || makeFilter || maxPrice
-    || yearFrom || yearTo || fuelFilter || transFilter || condFilter;
+  // Filtre active (pentru afisare badges)
+  const activeFilters: { label: string; clear: () => void }[] = [
+    ...(makeFilter ? [{ label: makeFilter, clear: () => { setMakeFilter(""); setModelFilter(""); resetPage(); } }] : []),
+    ...(modelFilter ? [{ label: modelFilter, clear: () => { setModelFilter(""); resetPage(); } }] : []),
+    ...(yearFrom ? [{ label: `De la ${yearFrom}`, clear: () => { setYearFrom(""); resetPage(); } }] : []),
+    ...(yearTo ? [{ label: `Până la ${yearTo}`, clear: () => { setYearTo(""); resetPage(); } }] : []),
+    ...(maxPrice ? [{ label: `Max $${maxPrice}`, clear: () => { setMaxPrice(""); resetPage(); } }] : []),
+    ...(fuelFilter ? [{ label: FUEL_RO[fuelFilter] || fuelFilter, clear: () => { setFuelFilter(""); resetPage(); } }] : []),
+    ...(transFilter ? [{ label: TRANS_RO[transFilter] || transFilter, clear: () => { setTransFilter(""); resetPage(); } }] : []),
+    ...(driveFilter ? [{ label: DRIVE_RO[driveFilter] || driveFilter, clear: () => { setDriveFilter(""); resetPage(); } }] : []),
+    ...(condFilter ? [{ label: tCondition(condFilter), clear: () => { setCondFilter(""); resetPage(); } }] : []),
+    ...(titleFilter !== "all" ? [{ label: titleFilter === "clean" ? "✓ Clean Title" : "⚠ Salvage Title", clear: () => { setTitleFilter("all"); resetPage(); } }] : []),
+  ];
+
+  // Valori combustibil: din API sau fallback
+  const fuelOptions = filtersMeta.fuel_types.length > 0
+    ? filtersMeta.fuel_types
+    : ["Gasoline", "Diesel", "Electric", "Hybrid"];
+  const transOptions = filtersMeta.transmissions.length > 0
+    ? filtersMeta.transmissions
+    : ["Automatic", "Manual"];
+  const driveOptions = filtersMeta.drive_types.length > 0
+    ? filtersMeta.drive_types
+    : ["AWD", "FWD", "RWD", "4WD"];
+  const condOptions = filtersMeta.run_conditions.length > 0
+    ? filtersMeta.run_conditions
+    : ["RUNS AND DRIVES", "STATIONARY", "ENHANCED VEHICLE"];
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -496,11 +591,12 @@ export default function CatalogPage() {
 
       {/* ── Filtre ── */}
       <section className="bg-white border-b border-slate-100 shadow-sm sticky top-[73px] z-40">
-        <div className="container mx-auto px-4 sm:px-6 py-3 space-y-2">
-          {/* Rând 1: Platform | Title | Marcă | Preț | Count */}
+        <div className="container mx-auto px-4 sm:px-6 py-3 space-y-2.5">
+
+          {/* Rând 1: Platform | Title | Make → Model | Preț */}
           <div className="flex flex-wrap gap-2 items-center">
             {/* Platform */}
-            <div className="flex rounded-xl overflow-hidden border border-slate-200 text-sm font-semibold">
+            <div className="flex rounded-xl overflow-hidden border border-slate-200 text-sm font-semibold flex-shrink-0">
               {(["all", "copart", "iaai"] as Platform[]).map((p) => (
                 <button
                   key={p}
@@ -516,7 +612,7 @@ export default function CatalogPage() {
             </div>
 
             {/* Title */}
-            <div className="flex rounded-xl overflow-hidden border border-slate-200 text-sm font-semibold">
+            <div className="flex rounded-xl overflow-hidden border border-slate-200 text-sm font-semibold flex-shrink-0">
               {(["all", "clean", "salvage"] as TitleType[]).map((t) => (
                 <button
                   key={t}
@@ -531,54 +627,66 @@ export default function CatalogPage() {
               ))}
             </div>
 
-            {/* Marcă */}
-            <div className="relative min-w-[150px] max-w-[200px] flex-1">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              <Input
-                placeholder="Marcă..."
+            {/* Make dropdown */}
+            <div className="min-w-[160px] max-w-[200px]">
+              <FilterSelect
                 value={makeFilter}
-                onChange={(e) => { setMakeFilter(e.target.value); resetPage(); }}
-                className="pl-8 h-8 text-sm border-slate-200"
+                onChange={(v) => { setMakeFilter(v); setModelFilter(""); resetPage(); }}
+                placeholder={filtersLoading ? "Se încarcă..." : "Toate mărcile"}
+                disabled={filtersLoading}
+                options={filtersMeta.makes.map((m) => ({ label: m.name, value: m.name }))}
               />
             </div>
 
+            {/* Model dropdown — apare doar dacă s-a ales marca */}
+            {makeFilter && (
+              <div className="min-w-[150px] max-w-[200px]">
+                <FilterSelect
+                  value={modelFilter}
+                  onChange={(v) => { setModelFilter(v); resetPage(); }}
+                  placeholder="Toate modelele"
+                  options={availableModels.map((m) => ({ label: m, value: m }))}
+                />
+              </div>
+            )}
+
             {/* Preț max */}
             <div className="relative min-w-[120px] max-w-[150px]">
-              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
-              <Input
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
+              <input
                 type="number"
                 placeholder="Preț max"
                 value={maxPrice}
                 onChange={(e) => { setMaxPrice(e.target.value); resetPage(); }}
-                className="pl-6 h-8 text-sm border-slate-200"
+                className="w-full h-9 pl-7 pr-3 text-sm border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-accent"
               />
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
-              {hasActiveFilters && (
+            <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+              {activeFilters.length > 0 && (
                 <button
                   type="button"
                   onClick={resetAllFilters}
-                  className="text-xs text-slate-400 hover:text-accent transition-colors underline"
+                  className="text-xs text-slate-400 hover:text-red-500 transition-colors underline whitespace-nowrap"
                 >
-                  Resetează
+                  Resetează tot
                 </button>
               )}
-              <p className="text-sm text-slate-400 hidden sm:block">
+              <p className="text-sm text-slate-400 hidden sm:block whitespace-nowrap">
                 {isLoading ? "Se caută..." : `${total.toLocaleString("ro-RO")} loturi`}
               </p>
             </div>
           </div>
 
-          {/* Rând 2: Carusel chip-uri — An, Combustibil, Transmisie, Stare */}
-          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6">
-            <div className="flex gap-2 items-center pb-1">
-              {/* Separator label */}
-              <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">An:</span>
+          {/* Rând 2: An | Combustibil chips | Transmisie | Drive | Stare motor */}
+          <div className="overflow-x-auto -mx-4 px-4 sm:-mx-6 sm:px-6">
+            <div className="flex gap-2 items-center pb-1 min-w-max">
+              {/* An */}
+              <span className="text-xs text-slate-400 font-medium">An:</span>
               <select
                 value={yearFrom}
                 onChange={(e) => { setYearFrom(e.target.value); resetPage(); }}
-                className="h-7 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-600 cursor-pointer"
+                className={`h-7 text-xs border rounded-lg px-2 bg-white cursor-pointer ${yearFrom ? "border-accent text-accent font-semibold" : "border-slate-200 text-slate-500"}`}
               >
                 <option value="">De la</option>
                 {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
@@ -586,80 +694,98 @@ export default function CatalogPage() {
               <select
                 value={yearTo}
                 onChange={(e) => { setYearTo(e.target.value); resetPage(); }}
-                className="h-7 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-600 cursor-pointer"
+                className={`h-7 text-xs border rounded-lg px-2 bg-white cursor-pointer ${yearTo ? "border-accent text-accent font-semibold" : "border-slate-200 text-slate-500"}`}
               >
                 <option value="">Până la</option>
                 {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
               </select>
 
-              <span className="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" />
-              <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">Combustibil:</span>
-              {[
-                { label: "Benzină", val: "Gasoline" },
-                { label: "Diesel", val: "Diesel" },
-                { label: "Electric", val: "Electric" },
-                { label: "Hibrid", val: "Hybrid" },
-              ].map(({ label, val }) => (
+              <span className="w-px h-5 bg-slate-200 mx-0.5 flex-shrink-0" />
+
+              {/* Combustibil */}
+              <span className="text-xs text-slate-400 font-medium">Combustibil:</span>
+              {fuelOptions.map((val) => (
                 <Chip key={val} active={fuelFilter === val} onClick={() => { setFuelFilter(fuelFilter === val ? "" : val); resetPage(); }}>
-                  {label}
+                  {FUEL_RO[val] || val}
                 </Chip>
               ))}
 
-              <span className="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" />
-              <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">Transmisie:</span>
-              {[
-                { label: "Automată", val: "Automatic" },
-                { label: "Manuală", val: "Manual" },
-              ].map(({ label, val }) => (
+              <span className="w-px h-5 bg-slate-200 mx-0.5 flex-shrink-0" />
+
+              {/* Transmisie */}
+              <span className="text-xs text-slate-400 font-medium">Transmisie:</span>
+              {transOptions.map((val) => (
                 <Chip key={val} active={transFilter === val} onClick={() => { setTransFilter(transFilter === val ? "" : val); resetPage(); }}>
-                  {label}
+                  {TRANS_RO[val] || val}
                 </Chip>
               ))}
 
-              <span className="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" />
-              <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">Stare:</span>
-              {[
-                { label: "Pornește și merge", val: "RUNS AND DRIVES" },
-                { label: "Staționar", val: "STATIONARY" },
-              ].map(({ label, val }) => (
+              <span className="w-px h-5 bg-slate-200 mx-0.5 flex-shrink-0" />
+
+              {/* Tracțiune */}
+              <span className="text-xs text-slate-400 font-medium">Tracțiune:</span>
+              {driveOptions.map((val) => (
+                <Chip key={val} active={driveFilter === val} onClick={() => { setDriveFilter(driveFilter === val ? "" : val); resetPage(); }}>
+                  {DRIVE_RO[val] || val}
+                </Chip>
+              ))}
+
+              <span className="w-px h-5 bg-slate-200 mx-0.5 flex-shrink-0" />
+
+              {/* Stare motor */}
+              <span className="text-xs text-slate-400 font-medium">Motor:</span>
+              {condOptions.slice(0, 3).map((val) => (
                 <Chip key={val} active={condFilter === val} onClick={() => { setCondFilter(condFilter === val ? "" : val); resetPage(); }}>
-                  {label}
+                  {tCondition(val)}
                 </Chip>
               ))}
             </div>
           </div>
+
+          {/* Rând 3: Active filter badges */}
+          {activeFilters.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {activeFilters.map((f, i) => (
+                <ActiveBadge key={i} label={f.label} onRemove={f.clear} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
-      {/* ── Lista ── */}
+      {/* ── Lista vehicule ── */}
       <section className="container mx-auto px-4 sm:px-6 py-8">
         {error ? (
           <div className="text-center py-20 text-slate-500">
             <Info className="h-10 w-10 mx-auto mb-3 text-red-400 opacity-70" />
             <p className="text-lg font-medium mb-2 text-red-600">Eroare la încărcare</p>
             <p className="text-sm mb-4 text-slate-400">{error}</p>
-            <Button onClick={fetchVehicles} variant="outline" className="gap-2">
-              <RefreshCw className="h-4 w-4" />
-              Reîncearcă
-            </Button>
+            <button
+              onClick={fetchVehicles}
+              className="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 rounded-xl text-sm hover:border-accent hover:text-accent transition-colors"
+            >
+              <RefreshCw className="h-4 w-4" /> Reîncearcă
+            </button>
           </div>
         ) : isLoading ? (
           <div className="flex flex-col gap-3 max-w-5xl mx-auto">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <SkeletonCard key={i} />
-            ))}
+            {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : vehicles.length === 0 ? (
           <div className="text-center py-20 text-slate-400">
-            <Car className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <Search className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p className="text-lg font-medium mb-2">Nu am găsit loturi</p>
-            <p className="text-sm">Încearcă să ajustezi filtrele</p>
+            <p className="text-sm mb-4">Încearcă să ajustezi filtrele</p>
+            <button
+              onClick={resetAllFilters}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-xl text-sm hover:bg-accent/90 transition-colors"
+            >
+              <X className="h-4 w-4" /> Resetează filtrele
+            </button>
           </div>
         ) : (
           <div className="flex flex-col gap-3 max-w-5xl mx-auto">
-            {vehicles.map((v) => (
-              <VehicleCard key={v.id} v={v} />
-            ))}
+            {vehicles.map((v) => <VehicleCard key={v.id} v={v} />)}
           </div>
         )}
 
@@ -677,21 +803,14 @@ export default function CatalogPage() {
             {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
               const pages = Math.min(totalPages, 7);
               let n: number;
-              if (pages <= 7) {
-                n = i + 1;
-              } else if (i === 0) {
-                n = 1;
-              } else if (i === pages - 1) {
-                n = totalPages;
-              } else {
-                n = Math.max(2, Math.min(totalPages - 1, page - 2 + i));
-              }
+              if (pages <= 7) n = i + 1;
+              else if (i === 0) n = 1;
+              else if (i === pages - 1) n = totalPages;
+              else n = Math.max(2, Math.min(totalPages - 1, page - 2 + i));
               return n;
             }).map((n, idx, arr) => (
               <span key={`${n}-${idx}`} className="inline-flex items-center gap-1">
-                {idx > 0 && arr[idx - 1] !== n - 1 && (
-                  <span className="text-slate-300 text-sm">…</span>
-                )}
+                {idx > 0 && arr[idx - 1] !== n - 1 && <span className="text-slate-300 text-sm">…</span>}
                 <button
                   type="button"
                   onClick={() => setPage(n)}
@@ -727,13 +846,11 @@ export default function CatalogPage() {
             Trimite-ne link-ul lotului și în câteva ore îți spunem dacă merită — gratuit, fără obligații.
           </p>
           <Button
-            asChild
-            size="lg"
+            asChild size="lg"
             className="bg-white text-accent hover:bg-white/90 h-14 px-10 font-bold text-base shadow-xl"
           >
             <Link href="/contact" className="flex items-center gap-2">
-              Trimite link-ul acum
-              <ArrowRight className="h-5 w-5" />
+              Trimite link-ul acum <ArrowRight className="h-5 w-5" />
             </Link>
           </Button>
         </div>
