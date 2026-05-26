@@ -56,13 +56,12 @@ export interface Vehicle {
   auctionUrl: string;
 }
 
-// ── API response mapper ────────────────────────────────────────────────────────
-// Bazat pe răspunsul REAL confirmat din browser:
+// ── API response mapper ─────────────────────────────────────────────────────────
+// Bazat pe raspunsul REAL confirmat din browser:
 // media.thumbs=string[], pricing.current_bid_usd, condition.run_condition={value,label},
 // vehicle_specs.engine={raw,size_l}, location={display,send_from,state}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapApiVehicle(v: any): Vehicle {
-  // Platform
   const platformId = Number(v.platform_id ?? 0);
   const platformStr = String(v.platform || "").toLowerCase();
   const platform: "copart" | "iaai" =
@@ -72,9 +71,8 @@ function mapApiVehicle(v: any): Vehicle {
   const vin = String(v.vin || "");
   const slug = String(v.slug_vin || v.slug || vin || lotNumber);
 
-  // Imagini: media.thumbs = array de URL string-uri (câmpul REAL din API)
+  // Imagini: media.thumbs = array de URL string-uri
   const media = v.media || {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let images: string[] = [];
   if (Array.isArray(media.thumbs)) {
     images = (media.thumbs as unknown[]).filter((s): s is string => typeof s === "string");
@@ -83,12 +81,12 @@ function mapApiVehicle(v: any): Vehicle {
     images = (media.items as any[]).map((i) => String(i.full || i.large || i.thumb || "")).filter(Boolean);
   }
 
-  // Preț: pricing.current_bid_usd (poate fi null) → buy_now_usd
+  // Pret: pricing.current_bid_usd (poate fi null) → buy_now_usd
   const pricing = v.pricing || {};
   const bid = Number(pricing.current_bid_usd ?? pricing.current_bid2_usd ?? pricing.buy_now_usd ?? 0);
   const buyNow = pricing.buy_now_usd ? Number(pricing.buy_now_usd) : undefined;
 
-  // Condiție: condition.run_condition este OBIECT {value, label, class_hint}
+  // Conditie: condition.run_condition este OBIECT {value, label, class_hint}
   const condition = v.condition || {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rcObj = condition.run_condition as any;
@@ -106,27 +104,21 @@ function mapApiVehicle(v: any): Vehicle {
   const fuelType = String(specs.fuel_type || "Gasoline");
   const transmission = String(specs.transmission || "Automatic");
 
-  // Sale document
   const saleDoc = v.sale_document || {};
   const titleType = String(saleDoc.name || "Salvage Title");
-
-  // Daune: condition.primary_damage (nu condition.loss care e null)
   const damage = String(condition.primary_damage || condition.loss || "");
 
-  // Locație: location={display,send_from,state} — extragem doar string-uri
+  // Locatie: location={display,send_from,state}
   const locRaw = v.location;
   const locationDisplay = !locRaw ? "" : typeof locRaw === "string" ? locRaw : String(locRaw.display || "");
   const state = !locRaw || typeof locRaw === "string" ? "" : String(locRaw.state || "");
 
-  // Odometru
   const odoObj = v.odometer || {};
   const odometer = typeof odoObj === "number" ? odoObj : Number(odoObj.mi ?? odoObj.km ?? 0);
   const odometerUnit = odoObj.km !== undefined && odoObj.mi === undefined ? "km" : "mi";
 
-  // Chei: condition.has_key este boolean în răspunsul real
   const hasKey = condition.has_key === true || condition.has_key === "With";
 
-  // Data licitație: auction.full_date
   const auction = v.auction || {};
   const auctionDateRaw = auction.full_date || auction.date || v.auction_date || "";
   const auctionDate = auctionDateRaw ? String(auctionDateRaw) : undefined;
@@ -555,4 +547,58 @@ export default function CatalogPage() {
               } else {
                 n = Math.max(2, Math.min(totalPages - 1, page - 2 + i));
               }
-              return n
+              return n;
+            }).map((n, idx, arr) => (
+              <span key={`${n}-${idx}`} className="inline-flex items-center gap-1">
+                {idx > 0 && arr[idx - 1] !== n - 1 && (
+                  <span className="text-slate-300 text-sm">…</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setPage(n)}
+                  className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all ${
+                    page === n
+                      ? "bg-accent text-white shadow-md shadow-accent/25"
+                      : "border border-slate-200 text-slate-600 hover:border-accent hover:text-accent"
+                  }`}
+                >
+                  {n}
+                </button>
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:border-accent hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+        )}
+      </section>
+
+      {/* ── CTA ── */}
+      <section className="bg-gradient-to-r from-accent to-blue-700 py-12">
+        <div className="container mx-auto px-6 text-center text-white">
+          <h2 className="text-2xl sm:text-3xl font-bold mb-4">
+            Ai găsit o mașină interesantă pe Copart sau IAAI?
+          </h2>
+          <p className="text-blue-100 mb-8 max-w-xl mx-auto">
+            Trimite-ne link-ul lotului și în câteva ore îți spunem dacă merită — gratuit, fără obligații.
+          </p>
+          <Button
+            asChild
+            size="lg"
+            className="bg-white text-accent hover:bg-white/90 h-14 px-10 font-bold text-base shadow-xl"
+          >
+            <Link href="/contact" className="flex items-center gap-2">
+              Trimite link-ul acum
+              <ArrowRight className="h-5 w-5" />
+            </Link>
+          </Button>
+        </div>
+      </section>
+    </main>
+  );
+}
