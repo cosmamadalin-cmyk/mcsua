@@ -57,29 +57,84 @@ export interface Vehicle {
 }
 
 // ── API response mapper ────────────────────────────────────────────────────────
+// Apibara răspunde cu structură nested conform documentației:
+// slug_vin, platform_id (1=Copart,2=IAAI), pricing.current_bid,
+// media.images[], condition.*, vehicle_specs.*, sale_document.name, etc.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapApiVehicle(v: any): Vehicle {
-  const src = (v.auction_type || v.platform || v.source || v.type || "copart").toLowerCase();
-  const platform: "copart" | "iaai" = src.includes("iaai") ? "iaai" : "copart";
+  // Platform: platform_id 1=Copart, 2=IAAI; sau string platform
+  const platformId = Number(v.platform_id ?? 0);
+  const platformStr = (v.platform || v.auction_type || v.source || "").toLowerCase();
+  const platform: "copart" | "iaai" =
+    platformId === 2 || platformStr.includes("iaai") ? "iaai" : "copart";
+
   const lotNumber = String(v.lot_number || v.lot || v.lot_id || "");
   const vin = v.vin || "";
-  const slug = v.slug || vin || lotNumber || v.id;
 
-  const rawImages = v.images || v.photos || [];
-  const images: string[] =
-    Array.isArray(rawImages) && rawImages.length > 0
-      ? rawImages.map((img: unknown) => (typeof img === "string" ? img : (img as { url?: string })?.url || ""))
-      : v.image
-        ? [v.image]
-        : [];
+  // slug_vin este identificatorul unic din apibara (ex: "2021-bmw-x5-5UXCR6C02M9D12345")
+  const slug = v.slug_vin || v.slug || vin || lotNumber || v.id;
 
-  const bid = Number(v.current_bid ?? v.bid_amount ?? v.estimated_bid ?? v.buy_now_price ?? 0);
-  const runDrive = v.run_drive ?? v.run_and_drive;
-  const runCondition =
-    runDrive === true ? "Runs and Drives" : runDrive === false ? "Stationary" : (v.run_condition || "Unknown");
+  // Imagini: media.images[] sau media.image_urls[] sau flat images[]
+  const media = v.media || {};
+  const rawImages =
+    media.images || media.image_urls || media.photos ||
+    v.images || v.photos || [];
+  const images: string[] = Array.isArray(rawImages)
+    ? rawImages
+        .map((img: unknown) =>
+          typeof img === "string" ? img : (img as { url?: string; src?: string })?.url || (img as { src?: string })?.src || ""
+        )
+        .filter(Boolean)
+    : v.image ? [v.image] : [];
+
+  // Preț: pricing.current_bid sau flat current_bid
+  const pricing = v.pricing || {};
+  const bid = Number(
+    pricing.current_bid ?? pricing.buy_now_price ??
+    v.current_bid ?? v.bid_amount ?? v.estimated_bid ?? 0
+  );
+  const buyNow = pricing.buy_now_price ? Number(pricing.buy_now_price) : v.buy_now_price ? Number(v.buy_now_price) : undefined;
+
+  // Condiție: condition.*
+  const condition = v.condition || {};
+  const runCondRaw = condition.run_condition || v.run_condition || v.run_drive || "";
+  const runCondition = typeof runCondRaw === "boolean"
+    ? (runCondRaw ? "Runs and Drives" : "Stationary")
+    : String(runCondRaw || "Unknown");
+
+  // Specificații: vehicle_specs.*
+  const specs = v.vehicle_specs || {};
+  const fuelType = specs.fuel_type || v.fuel || v.fuel_type || "Gasoline";
+  const transmission = specs.transmission || v.transmission || "Automatic";
+  const engine = specs.engine || specs.engine_size || v.engine || undefined;
+
+  // Titlu vehicul: sale_document.name sau title_type
+  const saleDoc = v.sale_document || {};
+  const titleType = saleDoc.name || saleDoc.type || v.title_type || v.title || "Salvage Title";
+
+  // Daune: condition.loss sau primary_damage
+  const damage = condition.loss || v.primary_damage || v.damage || "";
+
+  // Locație: location.display sau flat location
+  const loc = v.location || {};
+  const locationDisplay = typeof loc === "string" ? loc : loc.display || loc.city || v.yard || "";
+  const state = loc.state || v.state || v.state_code || "";
+
+  // Odometru: odometer.mi sau odometer.km
+  const odoObj = v.odometer || {};
+  const odometer = typeof odoObj === "number" ? odoObj
+    : Number(odoObj.mi ?? odoObj.km ?? v.odometer_value ?? v.odometer ?? 0);
+  const odometerUnit = odoObj.km !== undefined && odoObj.mi === undefined ? "km" : "mi";
+
+  // Chei: condition.key
+  const hasKey = condition.key === "With" || condition.key === true || v.has_keys ?? v.has_key ?? true;
+
+  // Data licitație: auction.date sau sale_date
+  const auction = v.auction || {};
+  const auctionDate = auction.date || auction.sale_date || v.sale_date || v.auction_date || undefined;
 
   return {
-    id: String(v.id || v.lot_number || v.vin || Math.random()),
+    id: String(v.id || lotNumber || vin || Math.random()),
     slug,
     platform,
     lotNumber,
@@ -88,25 +143,24 @@ function mapApiVehicle(v: any): Vehicle {
     make: v.make || "",
     model: v.model || "",
     trim: v.trim || undefined,
-    color: v.color || v.primary_color || undefined,
-    odometer: Number(v.odometer) || 0,
-    odometerUnit: v.odometer_unit || v.odometer_type || "mi",
-    titleType: v.title_type || v.title || "Salvage Title",
-    damage: v.primary_damage || v.damage || "",
+    color: specs.color || v.color || v.primary_color || undefined,
+    odometer,
+    odometerUnit,
+    titleType,
+    damage,
     estimatedBid: bid,
-    buyNow: v.buy_now_price ? Number(v.buy_now_price) : undefined,
-    auctionDate: v.sale_date || v.auction_date || undefined,
-    location: v.location || v.yard || "",
-    state: v.state || v.state_code || "",
+    buyNow,
+    auctionDate,
+    location: locationDisplay,
+    state,
     images,
-    hasKey: v.has_keys ?? v.has_key ?? true,
-    fuelType: v.fuel || v.fuel_type || "Gasoline",
-    transmission: v.transmission || "Automatic",
-    engine: v.engine || v.engine_size || undefined,
+    hasKey,
+    fuelType,
+    transmission,
+    engine,
     runCondition,
     auctionUrl:
-      v.auction_url ||
-      v.lot_url ||
+      v.auction_url || v.lot_url ||
       (platform === "iaai"
         ? `https://www.iaai.com/vehauto/${lotNumber}`
         : `https://www.copart.com/lot/${lotNumber}`),
@@ -508,55 +562,4 @@ export default function CatalogPage() {
               return n;
             }).map((n, idx, arr) => (
               <span key={`${n}-${idx}`} className="inline-flex items-center gap-1">
-                {idx > 0 && arr[idx - 1] !== n - 1 && (
-                  <span className="text-slate-300 text-sm">…</span>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setPage(n)}
-                  className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all ${
-                    page === n
-                      ? "bg-accent text-white shadow-md shadow-accent/25"
-                      : "border border-slate-200 text-slate-600 hover:border-accent hover:text-accent"
-                  }`}
-                >
-                  {n}
-                </button>
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              disabled={page === totalPages}
-              className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:border-accent hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </div>
-        )}
-      </section>
-
-      {/* ── CTA ── */}
-      <section className="bg-gradient-to-r from-accent to-blue-700 py-12">
-        <div className="container mx-auto px-6 text-center text-white">
-          <h2 className="text-2xl sm:text-3xl font-bold mb-4">
-            Ai găsit o mașină interesantă pe Copart sau IAAI?
-          </h2>
-          <p className="text-blue-100 mb-8 max-w-xl mx-auto">
-            Trimite-ne link-ul lotului și în câteva ore îți spunem dacă merită — gratuit, fără obligații.
-          </p>
-          <Button
-            asChild
-            size="lg"
-            className="bg-white text-accent hover:bg-white/90 h-14 px-10 font-bold text-base shadow-xl"
-          >
-            <Link href="/contact" className="flex items-center gap-2">
-              Trimite link-ul acum
-              <ArrowRight className="h-5 w-5" />
-            </Link>
-          </Button>
-        </div>
-      </section>
-    </main>
-  );
-}
+          

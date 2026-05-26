@@ -61,32 +61,85 @@ interface VehicleDetail {
 }
 
 // ── API mapper ─────────────────────────────────────────────────────────────────
+// Apibara structură nested: slug_vin, platform_id, pricing.*, media.*,
+// condition.*, vehicle_specs.*, sale_document.*, location.*, auction.*, odometer.*
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapDetailVehicle(v: any): VehicleDetail {
-  const src = (v.auction_type || v.platform || v.source || v.type || "copart").toLowerCase();
-  const platform: "copart" | "iaai" = src.includes("iaai") ? "iaai" : "copart";
+  const platformId = Number(v.platform_id ?? 0);
+  const platformStr = (v.platform || v.auction_type || v.source || "").toLowerCase();
+  const platform: "copart" | "iaai" =
+    platformId === 2 || platformStr.includes("iaai") ? "iaai" : "copart";
+
   const lotNumber = String(v.lot_number || v.lot || v.lot_id || "");
   const vin = v.vin || "";
-  const slug = v.slug || vin || lotNumber;
+  const slug = v.slug_vin || v.slug || vin || lotNumber;
 
-  const rawImages = v.images || v.photos || [];
-  const images: string[] =
-    Array.isArray(rawImages) && rawImages.length > 0
-      ? rawImages.map((img: unknown) =>
-          typeof img === "string" ? img : (img as { url?: string })?.url || ""
+  // Imagini
+  const media = v.media || {};
+  const rawImages =
+    media.images || media.image_urls || media.photos ||
+    v.images || v.photos || [];
+  const images: string[] = Array.isArray(rawImages)
+    ? rawImages
+        .map((img: unknown) =>
+          typeof img === "string" ? img :
+          (img as { url?: string; src?: string })?.url ||
+          (img as { src?: string })?.src || ""
         )
-      : v.image
-        ? [v.image]
-        : [];
+        .filter(Boolean)
+    : v.image ? [v.image] : [];
 
-  const bid = Number(v.current_bid ?? v.bid_amount ?? v.estimated_bid ?? 0);
-  const runDrive = v.run_drive ?? v.run_and_drive;
-  const runCondition =
-    runDrive === true
-      ? "Runs and Drives"
-      : runDrive === false
-        ? "Stationary"
-        : v.run_condition || "Unknown";
+  // Preț
+  const pricing = v.pricing || {};
+  const bid = Number(pricing.current_bid ?? pricing.buy_now_price ?? v.current_bid ?? v.bid_amount ?? v.estimated_bid ?? 0);
+  const buyNow = pricing.buy_now_price ? Number(pricing.buy_now_price) : v.buy_now_price ? Number(v.buy_now_price) : undefined;
+
+  // Condiție
+  const condition = v.condition || {};
+  const runCondRaw = condition.run_condition || v.run_condition || v.run_drive || "";
+  const runCondition = typeof runCondRaw === "boolean"
+    ? (runCondRaw ? "Runs and Drives" : "Stationary")
+    : String(runCondRaw || "Unknown");
+
+  // Specificații
+  const specs = v.vehicle_specs || {};
+  const fuelType = specs.fuel_type || v.fuel || v.fuel_type || "Gasoline";
+  const transmission = specs.transmission || v.transmission || "Automatic";
+  const engine = specs.engine || specs.engine_size || v.engine || undefined;
+  const cylinders = specs.cylinders || v.cylinders || undefined;
+  const driveType = specs.drive_type || v.drive_type || v.drive || undefined;
+  const bodyType = specs.body_style || specs.type || v.body_type || v.body || v.type || undefined;
+  const airbags = specs.airbags || specs.restraint_system || v.airbags || v.airbag_status || undefined;
+
+  // Titlu / documente
+  const saleDoc = v.sale_document || {};
+  const titleType = saleDoc.name || saleDoc.type || v.title_type || v.title || "Salvage Title";
+
+  // Daune
+  const damage = condition.loss || v.primary_damage || v.damage || "";
+  const secondaryDamage = condition.secondary_loss || v.secondary_damage || undefined;
+
+  // Locație
+  const loc = v.location || {};
+  const locationDisplay = typeof loc === "string" ? loc : loc.display || loc.city || v.yard || "";
+  const state = loc.state || v.state || v.state_code || "";
+
+  // Odometru
+  const odoObj = v.odometer || {};
+  const odometer = typeof odoObj === "number" ? odoObj
+    : Number(odoObj.mi ?? odoObj.km ?? v.odometer_value ?? v.odometer ?? 0);
+  const odometerUnit = odoObj.km !== undefined && odoObj.mi === undefined ? "km" : "mi";
+
+  // Chei
+  const hasKey = condition.key === "With" || condition.key === true || v.has_keys ?? v.has_key ?? true;
+
+  // Vânzător
+  const seller = v.seller || {};
+  const sellerName = typeof seller === "string" ? seller : seller.name || v.seller_name || undefined;
+
+  // Data licitație
+  const auction = v.auction || {};
+  const auctionDate = auction.date || auction.sale_date || v.sale_date || v.auction_date || undefined;
 
   return {
     slug,
@@ -97,31 +150,30 @@ function mapDetailVehicle(v: any): VehicleDetail {
     make: v.make || "",
     model: v.model || "",
     trim: v.trim || undefined,
-    color: v.color || v.primary_color || undefined,
-    odometer: Number(v.odometer) || 0,
-    odometerUnit: v.odometer_unit || v.odometer_type || "mi",
-    titleType: v.title_type || v.title || "Salvage Title",
-    damage: v.primary_damage || v.damage || "",
-    secondaryDamage: v.secondary_damage || undefined,
+    color: specs.color || v.color || v.primary_color || undefined,
+    odometer,
+    odometerUnit,
+    titleType,
+    damage,
+    secondaryDamage,
     estimatedBid: bid,
-    buyNow: v.buy_now_price ? Number(v.buy_now_price) : undefined,
-    auctionDate: v.sale_date || v.auction_date || undefined,
-    location: v.location || v.yard || "",
-    state: v.state || v.state_code || "",
+    buyNow,
+    auctionDate,
+    location: locationDisplay,
+    state,
     images,
-    hasKey: v.has_keys ?? v.has_key ?? true,
-    fuelType: v.fuel || v.fuel_type || "Gasoline",
-    transmission: v.transmission || "Automatic",
-    engine: v.engine || v.engine_size || undefined,
-    cylinders: v.cylinders || undefined,
-    driveType: v.drive_type || v.drive || undefined,
-    bodyType: v.body_type || v.body || undefined,
-    seller: v.seller || v.seller_name || undefined,
-    airbags: v.airbags || v.airbag_status || undefined,
+    hasKey,
+    fuelType,
+    transmission,
+    engine,
+    cylinders: cylinders ? String(cylinders) : undefined,
+    driveType,
+    bodyType,
+    seller: sellerName,
+    airbags: airbags ? String(airbags) : undefined,
     runCondition,
     auctionUrl:
-      v.auction_url ||
-      v.lot_url ||
+      v.auction_url || v.lot_url ||
       (platform === "iaai"
         ? `https://www.iaai.com/vehauto/${lotNumber}`
         : `https://www.copart.com/lot/${lotNumber}`),
@@ -795,64 +847,4 @@ export default function VehicleDetailPage() {
                     value={new Date(vehicle.auctionDate).toLocaleDateString("ro-RO", {
                       day: "2-digit",
                       month: "long",
-                      year: "numeric",
-                    })}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Info notice */}
-            <div className="bg-blue-50 rounded-2xl p-5 flex gap-3">
-              <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-blue-700">
-                <p className="font-semibold mb-1">De ce să alegi MC SUA?</p>
-                <p className="text-blue-600 text-xs leading-relaxed">
-                  Noi gestionăm întregul proces — de la licitație până la înmatriculare în România.
-                  Plătești un comision fix de €1.000 și nu ai surprize. Livrare în 6-10 săptămâni.
-                </p>
-              </div>
-            </div>
-
-            {/* Mobile CTA */}
-            <div className="lg:hidden">
-              <Button asChild className="w-full bg-accent hover:bg-accent/90 h-12 font-bold shadow-lg shadow-accent/20">
-                <Link href="/contact" className="flex items-center justify-center gap-2">
-                  <Phone className="h-4 w-4" />
-                  Vreau consultanță gratuită
-                </Link>
-              </Button>
-            </div>
-          </div>
-
-          {/* ── Right: calculator sidebar ── */}
-          <div className="lg:col-span-1">
-            <CostCalculator vehicle={vehicle} />
-          </div>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-function QuickFact({
-  icon,
-  label,
-  value,
-  ok,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  ok?: boolean;
-}) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 text-center">
-      <div className={`mx-auto mb-2 w-fit ${ok === false ? "text-red-400" : ok === true ? "text-green-500" : "text-accent"}`}>
-        {icon}
-      </div>
-      <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{label}</p>
-      <p className="text-xs font-bold text-primary mt-0.5">{value}</p>
-    </div>
-  );
-}
+                      year: "numeric
