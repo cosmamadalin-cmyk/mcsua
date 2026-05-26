@@ -101,16 +101,18 @@ function mapApiVehicle(v: any): Vehicle {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function parseFiltersMeta(raw: any): FiltersMeta {
-  // Structura reala confirmata de Apibara support:
-  // { makes: string[], models_by_make: { "BMW": ["X3","X5",...], ... }, ... }
+  // Structura REALA din API (verificat cu test endpoint):
+  // response.data.make_model.makes = ["ACURA", "BMW", ...]
+  // response.data.make_model.models_by_make = { "BMW": ["X3","X5",...], ... }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = raw?.data ?? raw ?? {};
+  const makeModel = data?.make_model ?? {};
 
-  // makes = array de string-uri
-  const makesArr: string[] = Array.isArray(data?.makes) ? data.makes : [];
+  // makes = array de string-uri din make_model.makes
+  const makesArr: string[] = Array.isArray(makeModel?.makes) ? makeModel.makes : [];
 
-  // models_by_make = { "ACURA": ["ILX", "MDX", ...], "BMW": [...], ... }
-  const modelsByMake: Record<string, string[]> = data?.models_by_make ?? {};
+  // models_by_make = obiect din make_model.models_by_make
+  const modelsByMake: Record<string, string[]> = makeModel?.models_by_make ?? {};
 
   const makes: MakeOption[] = makesArr
     .map((name: string) => ({
@@ -700,6 +702,7 @@ export default function CatalogPage() {
       if (filters.cylinders) p.append("cylinders[]", filters.cylinders);
       if (filters.hasKey) p.set("has_key", filters.hasKey);
       if (filters.titleType) p.set("sale_document_type", filters.titleType);
+      p.set("page", String(page));
       p.set("per_page", String(PER_PAGE));
 
       const res = await fetch(`/api/vehicles?${p.toString()}`);
