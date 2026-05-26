@@ -73,7 +73,7 @@ function mapDetailVehicle(v: any): VehicleDetail {
 
   const lotNumber = String(v.lot_number || v.lot || "");
   const vin = String(v.vin || "");
-  const slug = String(v.slug_vin || v.slug || vin || lotNumber);
+  const slug = String(vin || v.slug_vin || v.slug || lotNumber);
 
   // Imagini: media.thumbs = array de URL string-uri
   const media = v.media || {};
@@ -169,6 +169,37 @@ function mapDetailVehicle(v: any): VehicleDetail {
       ? `https://www.iaai.com/vehauto/${lotNumber}`
       : `https://www.copart.com/lot/${lotNumber}`,
   };
+}
+
+
+// ── Traduceri română ──────────────────────────────────────────────────────────
+function tFuel(v: string): string {
+  const m: Record<string, string> = {
+    "Gas": "Benzină", "Gasoline": "Benzină", "gas": "Benzină",
+    "Diesel": "Diesel", "Electric": "Electric",
+    "Hybrid": "Hibrid", "Flexible": "Flex",
+  };
+  return m[v] || v;
+}
+function tTransmission(v: string): string {
+  const m: Record<string, string> = {
+    "Automatic": "Automată", "automatic": "Automată",
+    "Manual": "Manuală", "manual": "Manuală",
+  };
+  return m[v] || v;
+}
+function tDrive(v: string): string {
+  const vl = v.toUpperCase();
+  if (vl.includes("FRONT")) return "Tracțiune față";
+  if (vl.includes("REAR")) return "Tracțiune spate";
+  if (vl.includes("ALL") || vl.includes("AWD") || vl.includes("4WD") || vl.includes("4X4")) return "4×4";
+  return v;
+}
+function tCondition(v: string): string {
+  const vl = v.toLowerCase();
+  if (vl.includes("runs")) return "Pornește și merge";
+  if (vl.includes("stationary") || vl.includes("static")) return "Staționar";
+  return v;
 }
 
 // ── Buyer fee calculators ──────────────────────────────────────────────────────
@@ -798,7 +829,7 @@ export default function VehicleDetailPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <QuickFact icon={<Gauge className="h-5 w-5" />} label="Rulaj" value={`${vehicle.odometer.toLocaleString("ro-RO")} ${vehicle.odometerUnit}`} />
               <QuickFact icon={<MapPin className="h-5 w-5" />} label="Locație" value={`${vehicle.location}${vehicle.state ? `, ${vehicle.state}` : ""}`} />
-              <QuickFact icon={<Fuel className="h-5 w-5" />} label="Combustibil" value={vehicle.fuelType} />
+              <QuickFact icon={<Fuel className="h-5 w-5" />} label="Combustibil" value={tFuel(vehicle.fuelType)} />
               <QuickFact icon={<Key className="h-5 w-5" />} label="Chei" value={vehicle.hasKey ? "Da" : "Nu"} ok={vehicle.hasKey} />
             </div>
 
@@ -820,11 +851,11 @@ export default function VehicleDetailPage() {
                 <SpecRow label="Caroserie" value={vehicle.bodyType} />
                 <SpecRow label="Motor" value={vehicle.engine} />
                 <SpecRow label="Cilindri" value={vehicle.cylinders} />
-                <SpecRow label="Cutie de viteze" value={vehicle.transmission} />
-                <SpecRow label="Tracțiune" value={vehicle.driveType} />
-                <SpecRow label="Combustibil" value={vehicle.fuelType} />
+                <SpecRow label="Cutie de viteze" value={tTransmission(vehicle.transmission)} />
+                <SpecRow label="Tracțiune" value={vehicle.driveType ? tDrive(vehicle.driveType) : undefined} />
+                <SpecRow label="Combustibil" value={tFuel(vehicle.fuelType)} />
                 <SpecRow label="Rulaj" value={`${vehicle.odometer.toLocaleString("ro-RO")} ${vehicle.odometerUnit}`} />
-                <SpecRow label="Stare funcționare" value={vehicle.runCondition} />
+                <SpecRow label="Stare funcționare" value={tCondition(vehicle.runCondition)} />
                 <SpecRow label="Tip titlu" value={vehicle.titleType} />
                 <SpecRow label="Daună primară" value={vehicle.damage} />
                 {vehicle.secondaryDamage && <SpecRow label="Daună secundară" value={vehicle.secondaryDamage} />}

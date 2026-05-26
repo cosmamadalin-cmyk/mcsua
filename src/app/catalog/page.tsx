@@ -69,7 +69,7 @@ function mapApiVehicle(v: any): Vehicle {
 
   const lotNumber = String(v.lot_number || v.lot || "");
   const vin = String(v.vin || "");
-  const slug = String(v.slug_vin || v.slug || vin || lotNumber);
+  const slug = String(vin || v.slug_vin || v.slug || lotNumber);
 
   // Imagini: media.thumbs = array de URL string-uri
   const media = v.media || {};
@@ -153,6 +153,33 @@ function mapApiVehicle(v: any): Vehicle {
       ? `https://www.iaai.com/vehauto/${lotNumber}`
       : `https://www.copart.com/lot/${lotNumber}`,
   };
+}
+
+
+// ── Traduceri română ──────────────────────────────────────────────────────────
+function tFuel(v: string): string {
+  const m: Record<string, string> = {
+    "Gas": "Benzină", "Gasoline": "Benzină", "gas": "Benzină",
+    "Diesel": "Diesel", "diesel": "Diesel",
+    "Electric": "Electric", "electric": "Electric",
+    "Hybrid": "Hibrid", "hybrid": "Hibrid",
+    "Flexible": "Flex", "flexible": "Flex",
+  };
+  return m[v] || v;
+}
+function tTransmission(v: string): string {
+  const m: Record<string, string> = {
+    "Automatic": "Automată", "Manual": "Manuală", "manual": "Manuală",
+    "automatic": "Automată",
+  };
+  return m[v] || v;
+}
+function tCondition(v: string): string {
+  const vl = v.toLowerCase();
+  if (vl.includes("runs")) return "Pornește și merge";
+  if (vl.includes("stationary") || vl.includes("static")) return "Staționar";
+  if (vl.includes("no info") || vl.includes("engine start")) return "Fără info";
+  return v;
 }
 
 // ── Title badge ────────────────────────────────────────────────────────────────
@@ -258,7 +285,7 @@ function VehicleCard({ v }: { v: Vehicle }) {
           </div>
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
             <Fuel className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-            <span>{v.fuelType}</span>
+            <span>{tFuel(v.fuelType)}</span>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-slate-500">
             {v.runCondition === "Runs and Drives" ? (
@@ -266,7 +293,7 @@ function VehicleCard({ v }: { v: Vehicle }) {
             ) : (
               <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
             )}
-            <span>{v.runCondition === "Runs and Drives" ? "Pornește" : "Staționar"}</span>
+            <span>{tCondition(v.runCondition)}</span>
           </div>
         </div>
 
@@ -346,14 +373,12 @@ export default function CatalogPage() {
     setError(null);
     try {
       const params = new URLSearchParams();
-      if (platform !== "all") params.set("auction_type", platform);
-      if (titleFilter === "clean") params.set("title_type", "clean");
-      if (titleFilter === "salvage") params.set("title_type", "salvage");
-      if (makeFilter.trim()) params.set("make", makeFilter.trim());
+      if (platform === "copart") params.set("auction_type", "1");
+      else if (platform === "iaai") params.set("auction_type", "2");
+      if (makeFilter.trim()) params.set("make", makeFilter.trim().toUpperCase());
       if (maxPrice) params.set("price_max", maxPrice);
-      params.set("page", String(page));
       params.set("per_page", String(PER_PAGE));
-      params.set("lot_status", "open");
+      params.set("lot_sub_status", "Open");
 
       const res = await fetch(`/api/vehicles?${params.toString()}`);
       if (!res.ok) {
@@ -363,10 +388,10 @@ export default function CatalogPage() {
       const data = await res.json();
 
       // Handle different response envelope shapes from apibara
-      const rawList: unknown[] = data.vehicles ?? data.data ?? data.lots ?? data.results ?? [];
+      const rawList: unknown[] = data.data ?? data.vehicles ?? data.lots ?? data.results ?? [];
       const mappedVehicles = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
-      const tot = Number(data.total ?? data.meta?.total ?? rawList.length);
-      const pages = Number(data.total_pages ?? data.meta?.last_page ?? Math.ceil(tot / PER_PAGE)) || 1;
+      const tot = Number(data.meta?.total ?? data.total ?? rawList.length);
+      const pages = Math.max(1, Math.ceil(tot / PER_PAGE) || 1);
 
       setVehicles(mappedVehicles);
       setTotal(tot);
