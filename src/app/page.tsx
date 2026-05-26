@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -27,8 +28,40 @@ import { useScrollReveal } from "@/hooks/use-scroll-reveal";
 import { CinematicHeroBackground } from "@/components/cinematic-hero-background";
 import { GoogleReviewsCarousel } from "@/components/google-reviews-carousel";
 
+// Lista mărci populare pentru dropdown
+const MAKES = [
+  "Toate mărcile",
+  "Acura","Audi","BMW","Buick","Cadillac","Chevrolet","Chrysler",
+  "Dodge","Ferrari","Ford","Genesis","GMC","Honda","Hyundai",
+  "Infiniti","Jaguar","Jeep","Kia","Land Rover","Lexus",
+  "Lincoln","Maserati","Mazda","Mercedes-Benz","Mini","Mitsubishi",
+  "Nissan","Porsche","RAM","Subaru","Tesla","Toyota","Volkswagen","Volvo",
+];
+
+const YEAR_NOW = new Date().getFullYear();
+const YEARS = Array.from({ length: 30 }, (_, i) => YEAR_NOW - i);
+
 export default function Home() {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
+
+  // Search state
+  const [make, setMake] = useState("");
+  const [searchQ, setSearchQ] = useState("");
+  const [yearFrom, setYearFrom] = useState("");
+  const [yearTo, setYearTo] = useState("");
+  const [platform, setPlatform] = useState(""); // "" | "copart" | "iaai"
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    const params = new URLSearchParams();
+    if (make && make !== "Toate mărcile") params.set("make", make);
+    if (searchQ) params.set("search", searchQ);
+    if (yearFrom) params.set("year_from", yearFrom);
+    if (yearTo) params.set("year_to", yearTo);
+    if (platform) params.set("auction_type", platform);
+    router.push(`/catalog?${params.toString()}`);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -99,6 +132,112 @@ export default function Home() {
                   <span className="text-xs sm:text-sm font-semibold text-white drop-shadow-md opacity-95">8-10 săptămâni</span>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Search / Filter Section ── */}
+      <section className="bg-white border-b border-slate-100 py-8 sm:py-10">
+        <div className="container mx-auto px-4 sm:px-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-6">
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-primary mb-1">Import Mașini SUA</h2>
+              <div className="flex flex-wrap gap-6 justify-center mt-3 text-sm text-slate-500">
+                <span className="flex items-center gap-1.5"><Search className="h-4 w-4 text-accent" /><strong>Alegere</strong> — Peste 150.000 mașini</span>
+                <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-accent" /><strong>Verificare</strong> — Istoric Carfax inclus</span>
+                <span className="flex items-center gap-1.5"><Car className="h-4 w-4 text-accent" /><strong>Livrare</strong> — Direct la ușa ta</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleSearch} className="bg-slate-50 rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200">
+              {/* Marcă */}
+              <div className="mb-4">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Marcă</label>
+                <select
+                  value={make}
+                  onChange={(e) => setMake(e.target.value)}
+                  className="w-full sm:w-56 border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                >
+                  {MAKES.map((m) => (
+                    <option key={m} value={m === "Toate mărcile" ? "" : m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* VIN / lot */}
+              <div className="mb-4">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Număr VIN sau Număr Licitație</label>
+                <input
+                  type="text"
+                  value={searchQ}
+                  onChange={(e) => setSearchQ(e.target.value)}
+                  placeholder="Caută după VIN, număr lot, marcă sau model (ex. BMW 540)"
+                  className="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm bg-white text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                />
+              </div>
+
+              {/* An fabricație + Platformă + Buton */}
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">An Fabricație</label>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={yearFrom}
+                      onChange={(e) => setYearFrom(e.target.value)}
+                      className="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                    >
+                      <option value="">De la</option>
+                      {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    <select
+                      value={yearTo}
+                      onChange={(e) => setYearTo(e.target.value)}
+                      className="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                    >
+                      <option value="">Până la</option>
+                      {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Platformă</label>
+                  <div className="flex gap-2">
+                    {[{ label: "Toate", value: "" }, { label: "Copart", value: "copart" }, { label: "IAAI", value: "iaai" }].map((p) => (
+                      <button
+                        key={p.value}
+                        type="button"
+                        onClick={() => setPlatform(p.value)}
+                        className={`px-4 py-2.5 rounded-xl text-sm font-semibold border transition-all ${
+                          platform === p.value
+                            ? "bg-accent text-white border-accent shadow-md"
+                            : "bg-white text-slate-600 border-slate-200 hover:border-accent hover:text-accent"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 bg-accent hover:bg-accent/90 text-white font-bold px-6 py-2.5 rounded-xl shadow-md shadow-accent/20 transition-all hover:scale-105 text-sm"
+                >
+                  <Search className="h-4 w-4" />
+                  Caută mașini
+                </button>
+              </div>
+            </form>
+
+            <div className="flex gap-4 justify-center mt-5">
+              <Link href="/catalog" className="inline-flex items-center gap-2 bg-accent text-white font-bold px-6 py-2.5 rounded-xl text-sm hover:bg-accent/90 transition-all">
+                Catalog →
+              </Link>
+              <Link href="/cum-functioneaza" className="inline-flex items-center gap-2 border border-slate-300 text-slate-600 font-semibold px-6 py-2.5 rounded-xl text-sm hover:border-accent hover:text-accent transition-all">
+                ⓘ Cum funcționează?
+              </Link>
             </div>
           </div>
         </div>
