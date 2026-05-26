@@ -57,9 +57,6 @@ export interface Vehicle {
 }
 
 // ── API response mapper ─────────────────────────────────────────────────────────
-// Bazat pe raspunsul REAL confirmat din browser:
-// media.thumbs=string[], pricing.current_bid_usd, condition.run_condition={value,label},
-// vehicle_specs.engine={raw,size_l}, location={display,send_from,state}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapApiVehicle(v: any): Vehicle {
   const platformId = Number(v.platform_id ?? 0);
@@ -71,7 +68,6 @@ function mapApiVehicle(v: any): Vehicle {
   const vin = String(v.vin || "");
   const slug = String(vin || v.slug_vin || v.slug || lotNumber);
 
-  // Imagini: media.thumbs = array de URL string-uri
   const media = v.media || {};
   let images: string[] = [];
   if (Array.isArray(media.thumbs)) {
@@ -81,12 +77,10 @@ function mapApiVehicle(v: any): Vehicle {
     images = (media.items as any[]).map((i) => String(i.full || i.large || i.thumb || "")).filter(Boolean);
   }
 
-  // Pret: pricing.current_bid_usd (poate fi null) → buy_now_usd
   const pricing = v.pricing || {};
   const bid = Number(pricing.current_bid_usd ?? pricing.current_bid2_usd ?? pricing.buy_now_usd ?? 0);
   const buyNow = pricing.buy_now_usd ? Number(pricing.buy_now_usd) : undefined;
 
-  // Conditie: condition.run_condition este OBIECT {value, label, class_hint}
   const condition = v.condition || {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rcObj = condition.run_condition as any;
@@ -94,7 +88,6 @@ function mapApiVehicle(v: any): Vehicle {
     ? String(rcObj.label || rcObj.value || "Unknown")
     : String(rcObj || "Unknown");
 
-  // Specs: vehicle_specs.engine este OBIECT {raw, size_l, hp, layout}
   const specs = v.vehicle_specs || {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const engObj = specs.engine as any;
@@ -108,7 +101,6 @@ function mapApiVehicle(v: any): Vehicle {
   const titleType = String(saleDoc.name || "Salvage Title");
   const damage = String(condition.primary_damage || condition.loss || "");
 
-  // Locatie: location={display,send_from,state}
   const locRaw = v.location;
   const locationDisplay = !locRaw ? "" : typeof locRaw === "string" ? locRaw : String(locRaw.display || "");
   const state = !locRaw || typeof locRaw === "string" ? "" : String(locRaw.state || "");
@@ -155,7 +147,6 @@ function mapApiVehicle(v: any): Vehicle {
   };
 }
 
-
 // ── Traduceri română ──────────────────────────────────────────────────────────
 function tFuel(v: string): string {
   const m: Record<string, string> = {
@@ -180,6 +171,31 @@ function tCondition(v: string): string {
   if (vl.includes("stationary") || vl.includes("static")) return "Staționar";
   if (vl.includes("no info") || vl.includes("engine start")) return "Fără info";
   return v;
+}
+
+// ── Chip button helper ─────────────────────────────────────────────────────────
+function Chip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+        active
+          ? "bg-accent text-white border-accent"
+          : "bg-white text-slate-600 border-slate-200 hover:border-accent hover:text-accent"
+      }`}
+    >
+      {children}
+    </button>
+  );
 }
 
 // ── Title badge ────────────────────────────────────────────────────────────────
@@ -210,147 +226,156 @@ function PlatformBadge({ platform }: { platform: "copart" | "iaai" }) {
   );
 }
 
-// ── Vehicle card ───────────────────────────────────────────────────────────────
+// ── Vehicle card — layout tip listă ───────────────────────────────────────────
 function VehicleCard({ v }: { v: Vehicle }) {
   const [imgError, setImgError] = useState(false);
 
   return (
-    <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 overflow-hidden group">
-      {/* Image — clicking goes to detail page */}
-      <Link href={`/catalog/${v.slug}`} className="block">
-        <div className="aspect-[4/3] overflow-hidden relative bg-slate-100">
-          {!imgError && v.images[0] ? (
-            <img
-              src={v.images[0]}
-              alt={`${v.year} ${v.make} ${v.model}`}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Car className="h-12 w-12 text-slate-300" />
+    <Card className="border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
+      <div className="flex flex-row">
+        {/* Imagine stânga — 200px fix */}
+        <Link href={`/catalog/${v.slug}`} className="block flex-shrink-0 relative w-48 sm:w-52">
+          <div className="h-full min-h-[148px] bg-slate-100 overflow-hidden relative">
+            {!imgError && v.images[0] ? (
+              <img
+                src={v.images[0]}
+                alt={`${v.year} ${v.make} ${v.model}`}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                onError={() => setImgError(true)}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Car className="h-10 w-10 text-slate-300" />
+              </div>
+            )}
+            {/* Badges overlay */}
+            <div className="absolute top-2 left-2 flex flex-col gap-1">
+              <PlatformBadge platform={v.platform} />
             </div>
-          )}
-          {/* Overlay badges */}
-          <div className="absolute top-3 left-3 flex gap-2 flex-wrap">
-            <PlatformBadge platform={v.platform} />
-            <TitleBadge type={v.titleType} />
+            {v.auctionDate && (
+              <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm text-white text-xs px-1.5 py-0.5 rounded flex items-center gap-1">
+                <Calendar className="h-2.5 w-2.5" />
+                {new Date(v.auctionDate).toLocaleDateString("ro-RO", {
+                  day: "2-digit",
+                  month: "short",
+                })}
+              </div>
+            )}
           </div>
-          {v.buyNow && (
-            <div className="absolute top-3 right-3 bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full">
-              Buy Now
-            </div>
-          )}
-          {v.auctionDate && (
-            <div className="absolute bottom-3 right-3 bg-black/60 backdrop-blur-sm text-white text-xs px-2 py-1 rounded flex items-center gap-1">
-              <Calendar className="h-3 w-3" />
-              {new Date(v.auctionDate).toLocaleDateString("ro-RO", {
-                day: "2-digit",
-                month: "short",
-              })}
-            </div>
-          )}
-        </div>
-      </Link>
-
-      <CardContent className="pt-4 pb-5 px-5">
-        {/* Title */}
-        <Link href={`/catalog/${v.slug}`} className="block hover:text-accent transition-colors">
-          <h3 className="font-bold text-base text-primary leading-tight mb-1">
-            {v.year} {v.make} {v.model}
-            {v.trim ? ` ${v.trim}` : ""}
-          </h3>
         </Link>
 
-        {/* Damage */}
-        <p className="text-xs text-amber-600 font-medium mb-3 flex items-center gap-1">
-          <AlertTriangle className="h-3 w-3" />
-          {v.damage}
-        </p>
+        {/* Detalii dreapta */}
+        <CardContent className="flex-1 py-3 px-4 flex flex-col justify-between min-w-0">
+          {/* Rând 1: titlu + titlu tip */}
+          <div className="flex items-start justify-between gap-2 mb-1">
+            <Link href={`/catalog/${v.slug}`} className="hover:text-accent transition-colors min-w-0">
+              <h3 className="font-bold text-sm sm:text-base text-primary leading-tight truncate">
+                {v.year} {v.make} {v.model}
+                {v.trim ? ` ${v.trim}` : ""}
+              </h3>
+            </Link>
+            <TitleBadge type={v.titleType} />
+          </div>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-2 gap-2 mb-4">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <Gauge className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-            <span>
-              {v.odometer.toLocaleString("ro-RO")} {v.odometerUnit}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-            <span>
-              {v.location}
-              {v.state ? `, ${v.state}` : ""}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <Fuel className="h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-            <span>{tFuel(v.fuelType)}</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            {v.runCondition === "Runs and Drives" ? (
-              <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0 text-green-500" />
-            ) : (
-              <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
-            )}
-            <span>{tCondition(v.runCondition)}</span>
-          </div>
-        </div>
-
-        {/* Price + CTA */}
-        <div className="flex items-end justify-between gap-2">
-          <div>
-            <p className="text-xs text-slate-400 mb-0.5">Bid curent</p>
-            <p className="text-xl font-extrabold text-accent">
-              ${v.estimatedBid.toLocaleString("ro-RO")}
+          {/* Daune */}
+          {v.damage && (
+            <p className="text-xs text-amber-600 font-medium mb-2 flex items-center gap-1 truncate">
+              <AlertTriangle className="h-3 w-3 flex-shrink-0" />
+              {v.damage}
             </p>
-            {v.buyNow && (
-              <p className="text-xs text-green-600 font-semibold">
-                Buy Now: ${v.buyNow.toLocaleString("ro-RO")}
-              </p>
+          )}
+
+          {/* Grid spec-uri */}
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Gauge className="h-3 w-3 flex-shrink-0 text-slate-400" />
+              <span>{v.odometer.toLocaleString("ro-RO")} {v.odometerUnit}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <MapPin className="h-3 w-3 flex-shrink-0 text-slate-400" />
+              <span className="truncate">{v.state || v.location}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              <Fuel className="h-3 w-3 flex-shrink-0 text-slate-400" />
+              <span>{tFuel(v.fuelType)}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+              {v.runCondition?.toLowerCase().includes("runs") ? (
+                <CheckCircle2 className="h-3 w-3 flex-shrink-0 text-green-500" />
+              ) : (
+                <AlertTriangle className="h-3 w-3 flex-shrink-0 text-amber-500" />
+              )}
+              <span className="truncate">{tCondition(v.runCondition)}</span>
+            </div>
+            {v.engine && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 col-span-2">
+                <Car className="h-3 w-3 flex-shrink-0 text-slate-400" />
+                <span className="truncate">{v.engine}</span>
+              </div>
             )}
           </div>
-          <div className="flex flex-col gap-2">
-            <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-white text-xs h-8 px-3">
-              <Link href={`/catalog/${v.slug}`}>Vezi detalii</Link>
-            </Button>
-            <a
-              href={v.auctionUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1 text-xs text-slate-500 hover:text-accent transition-colors font-medium"
-            >
-              <ExternalLink className="h-3 w-3" />
-              {v.platform === "copart" ? "Copart" : "IAAI"}
-            </a>
+
+          {/* Pret + butoane */}
+          <div className="flex items-center justify-between gap-2 mt-auto">
+            <div>
+              <p className="text-xs text-slate-400 leading-none mb-0.5">Bid curent</p>
+              <p className="text-lg font-extrabold text-accent leading-none">
+                ${v.estimatedBid.toLocaleString("ro-RO")}
+              </p>
+              {v.buyNow && (
+                <p className="text-xs text-green-600 font-semibold mt-0.5">
+                  Buy Now: ${v.buyNow.toLocaleString("ro-RO")}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href={v.auctionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1 text-xs text-slate-500 hover:text-accent transition-colors font-medium"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+              <Button asChild size="sm" className="bg-accent hover:bg-accent/90 text-white text-xs h-8 px-3">
+                <Link href={`/catalog/${v.slug}`}>
+                  Detalii
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </Link>
+              </Button>
+            </div>
           </div>
-        </div>
-      </CardContent>
+        </CardContent>
+      </div>
     </Card>
   );
 }
 
-// ── Skeleton card ──────────────────────────────────────────────────────────────
+// ── Skeleton list ──────────────────────────────────────────────────────────────
 function SkeletonCard() {
   return (
-    <div className="rounded-2xl overflow-hidden border-0 shadow-lg bg-white animate-pulse">
-      <div className="aspect-[4/3] bg-slate-200" />
-      <div className="p-5 space-y-3">
-        <div className="h-4 bg-slate-200 rounded w-3/4" />
-        <div className="h-3 bg-slate-100 rounded w-1/2" />
-        <div className="grid grid-cols-2 gap-2">
+    <div className="rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-white animate-pulse flex flex-row h-[148px]">
+      <div className="w-48 sm:w-52 flex-shrink-0 bg-slate-200" />
+      <div className="flex-1 p-4 space-y-2">
+        <div className="h-4 bg-slate-200 rounded w-2/3" />
+        <div className="h-3 bg-slate-100 rounded w-1/3" />
+        <div className="grid grid-cols-2 gap-2 mt-2">
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-3 bg-slate-100 rounded" />
           ))}
         </div>
-        <div className="flex justify-between items-end pt-1">
-          <div className="h-6 bg-slate-200 rounded w-20" />
-          <div className="h-8 bg-slate-100 rounded w-24" />
+        <div className="flex justify-between items-end pt-2">
+          <div className="h-5 bg-slate-200 rounded w-16" />
+          <div className="h-8 bg-slate-100 rounded w-20" />
         </div>
       </div>
     </div>
   );
 }
+
+// ── Ani pentru select ──────────────────────────────────────────────────────────
+const CURRENT_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: CURRENT_YEAR - 1989 }, (_, i) => String(CURRENT_YEAR - i));
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function CatalogPage() {
@@ -358,6 +383,11 @@ export default function CatalogPage() {
   const [titleFilter, setTitleFilter] = useState<TitleType>("all");
   const [makeFilter, setMakeFilter] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [yearFrom, setYearFrom] = useState("");
+  const [yearTo, setYearTo] = useState("");
+  const [fuelFilter, setFuelFilter] = useState("");
+  const [transFilter, setTransFilter] = useState("");
+  const [condFilter, setCondFilter] = useState("");
   const [page, setPage] = useState(1);
 
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
@@ -377,6 +407,11 @@ export default function CatalogPage() {
       else if (platform === "iaai") params.set("auction_type", "2");
       if (makeFilter.trim()) params.set("make", makeFilter.trim().toUpperCase());
       if (maxPrice) params.set("price_max", maxPrice);
+      if (yearFrom) params.set("year_from", yearFrom);
+      if (yearTo) params.set("year_to", yearTo);
+      if (fuelFilter) params.set("fuel_type", fuelFilter);
+      if (transFilter) params.set("transmission", transFilter);
+      if (condFilter) params.set("run_cond", condFilter);
       params.set("per_page", String(PER_PAGE));
       params.set("lot_sub_status", "Open");
 
@@ -387,7 +422,6 @@ export default function CatalogPage() {
       }
       const data = await res.json();
 
-      // Handle different response envelope shapes from apibara
       const rawList: unknown[] = data.data ?? data.vehicles ?? data.lots ?? data.results ?? [];
       const mappedVehicles = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
       const tot = Number(data.meta?.total ?? data.total ?? rawList.length);
@@ -405,13 +439,29 @@ export default function CatalogPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [platform, titleFilter, makeFilter, maxPrice, page]);
+  }, [platform, titleFilter, makeFilter, maxPrice, yearFrom, yearTo, fuelFilter, transFilter, condFilter, page]);
 
   useEffect(() => {
     fetchVehicles();
   }, [fetchVehicles]);
 
   const resetPage = () => setPage(1);
+
+  const resetAllFilters = () => {
+    setPlatform("all");
+    setTitleFilter("all");
+    setMakeFilter("");
+    setMaxPrice("");
+    setYearFrom("");
+    setYearTo("");
+    setFuelFilter("");
+    setTransFilter("");
+    setCondFilter("");
+    setPage(1);
+  };
+
+  const hasActiveFilters = platform !== "all" || titleFilter !== "all" || makeFilter || maxPrice
+    || yearFrom || yearTo || fuelFilter || transFilter || condFilter;
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -438,21 +488,19 @@ export default function CatalogPage() {
         </div>
       </section>
 
-      {/* ── Filters ── */}
+      {/* ── Filtre ── */}
       <section className="bg-white border-b border-slate-100 shadow-sm sticky top-[73px] z-40">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex flex-wrap gap-3 items-center">
+        <div className="container mx-auto px-4 sm:px-6 py-3 space-y-2">
+          {/* Rând 1: Platform | Title | Marcă | Preț | Count */}
+          <div className="flex flex-wrap gap-2 items-center">
             {/* Platform */}
             <div className="flex rounded-xl overflow-hidden border border-slate-200 text-sm font-semibold">
               {(["all", "copart", "iaai"] as Platform[]).map((p) => (
                 <button
                   key={p}
                   type="button"
-                  onClick={() => {
-                    setPlatform(p);
-                    resetPage();
-                  }}
-                  className={`px-4 py-2 transition-all ${
+                  onClick={() => { setPlatform(p); resetPage(); }}
+                  className={`px-3 py-1.5 transition-all ${
                     platform === p ? "bg-accent text-white" : "bg-white text-slate-600 hover:bg-slate-50"
                   }`}
                 >
@@ -467,11 +515,8 @@ export default function CatalogPage() {
                 <button
                   key={t}
                   type="button"
-                  onClick={() => {
-                    setTitleFilter(t);
-                    resetPage();
-                  }}
-                  className={`px-3 py-2 transition-all ${
+                  onClick={() => { setTitleFilter(t); resetPage(); }}
+                  className={`px-3 py-1.5 transition-all ${
                     titleFilter === t ? "bg-accent text-white" : "bg-white text-slate-600 hover:bg-slate-50"
                   }`}
                 >
@@ -480,44 +525,108 @@ export default function CatalogPage() {
               ))}
             </div>
 
-            {/* Make search */}
-            <div className="relative flex-1 min-w-[160px] max-w-[240px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            {/* Marcă */}
+            <div className="relative min-w-[150px] max-w-[200px] flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input
-                placeholder="Marcă / model..."
+                placeholder="Marcă..."
                 value={makeFilter}
-                onChange={(e) => {
-                  setMakeFilter(e.target.value);
-                  resetPage();
-                }}
-                className="pl-9 h-9 text-sm border-slate-200"
+                onChange={(e) => { setMakeFilter(e.target.value); resetPage(); }}
+                className="pl-8 h-8 text-sm border-slate-200"
               />
             </div>
 
-            {/* Max price */}
-            <div className="relative min-w-[140px]">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-medium">$</span>
+            {/* Preț max */}
+            <div className="relative min-w-[120px] max-w-[150px]">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">$</span>
               <Input
                 type="number"
-                placeholder="Preț max..."
+                placeholder="Preț max"
                 value={maxPrice}
-                onChange={(e) => {
-                  setMaxPrice(e.target.value);
-                  resetPage();
-                }}
-                className="pl-7 h-9 text-sm border-slate-200"
+                onChange={(e) => { setMaxPrice(e.target.value); resetPage(); }}
+                className="pl-6 h-8 text-sm border-slate-200"
               />
             </div>
 
-            <p className="text-sm text-slate-400 ml-auto hidden sm:block">
-              {isLoading ? "Se caută..." : `${total.toLocaleString("ro-RO")} loturi`}
-            </p>
+            <div className="ml-auto flex items-center gap-2">
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  className="text-xs text-slate-400 hover:text-accent transition-colors underline"
+                >
+                  Resetează
+                </button>
+              )}
+              <p className="text-sm text-slate-400 hidden sm:block">
+                {isLoading ? "Se caută..." : `${total.toLocaleString("ro-RO")} loturi`}
+              </p>
+            </div>
+          </div>
+
+          {/* Rând 2: Carusel chip-uri — An, Combustibil, Transmisie, Stare */}
+          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4 sm:-mx-6 sm:px-6">
+            <div className="flex gap-2 items-center pb-1">
+              {/* Separator label */}
+              <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">An:</span>
+              <select
+                value={yearFrom}
+                onChange={(e) => { setYearFrom(e.target.value); resetPage(); }}
+                className="h-7 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-600 cursor-pointer"
+              >
+                <option value="">De la</option>
+                {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+              <select
+                value={yearTo}
+                onChange={(e) => { setYearTo(e.target.value); resetPage(); }}
+                className="h-7 text-xs border border-slate-200 rounded-lg px-2 bg-white text-slate-600 cursor-pointer"
+              >
+                <option value="">Până la</option>
+                {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+
+              <span className="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" />
+              <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">Combustibil:</span>
+              {[
+                { label: "Benzină", val: "gas" },
+                { label: "Diesel", val: "diesel" },
+                { label: "Electric", val: "electric" },
+                { label: "Hibrid", val: "hybrid" },
+              ].map(({ label, val }) => (
+                <Chip key={val} active={fuelFilter === val} onClick={() => { setFuelFilter(fuelFilter === val ? "" : val); resetPage(); }}>
+                  {label}
+                </Chip>
+              ))}
+
+              <span className="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" />
+              <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">Transmisie:</span>
+              {[
+                { label: "Automată", val: "automatic" },
+                { label: "Manuală", val: "manual" },
+              ].map(({ label, val }) => (
+                <Chip key={val} active={transFilter === val} onClick={() => { setTransFilter(transFilter === val ? "" : val); resetPage(); }}>
+                  {label}
+                </Chip>
+              ))}
+
+              <span className="w-px h-5 bg-slate-200 mx-1 flex-shrink-0" />
+              <span className="text-xs text-slate-400 font-medium whitespace-nowrap flex-shrink-0">Stare:</span>
+              {[
+                { label: "Pornește și merge", val: "run" },
+                { label: "Staționar", val: "stationary" },
+              ].map(({ label, val }) => (
+                <Chip key={val} active={condFilter === val} onClick={() => { setCondFilter(condFilter === val ? "" : val); resetPage(); }}>
+                  {label}
+                </Chip>
+              ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ── Grid ── */}
-      <section className="container mx-auto px-4 sm:px-6 py-10">
+      {/* ── Lista ── */}
+      <section className="container mx-auto px-4 sm:px-6 py-8">
         {error ? (
           <div className="text-center py-20 text-slate-500">
             <Info className="h-10 w-10 mx-auto mb-3 text-red-400 opacity-70" />
@@ -529,7 +638,7 @@ export default function CatalogPage() {
             </Button>
           </div>
         ) : isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+          <div className="flex flex-col gap-3 max-w-5xl mx-auto">
             {Array.from({ length: 6 }).map((_, i) => (
               <SkeletonCard key={i} />
             ))}
@@ -541,14 +650,14 @@ export default function CatalogPage() {
             <p className="text-sm">Încearcă să ajustezi filtrele</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
+          <div className="flex flex-col gap-3 max-w-5xl mx-auto">
             {vehicles.map((v) => (
               <VehicleCard key={v.id} v={v} />
             ))}
           </div>
         )}
 
-        {/* Pagination */}
+        {/* Paginare */}
         {!isLoading && !error && totalPages > 1 && (
           <div className="flex items-center justify-center gap-3 mt-10">
             <button
@@ -560,7 +669,6 @@ export default function CatalogPage() {
               <ChevronLeft className="h-5 w-5" />
             </button>
             {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-              // Show first, last, and pages around current
               const pages = Math.min(totalPages, 7);
               let n: number;
               if (pages <= 7) {
