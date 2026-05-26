@@ -1,0 +1,15 @@
+[images]
+  remote_images = ["https://source.unsplash.com/.*", "https://images.unsplash.com/.*", "https://ext.same-assets.com/.*", "https://ugc.same-assets.com/.*", "https://cdn.dealeraccelerate.com/.*"]
+
+[build]
+  command = "bun run build"
+  publish = ".next"
+
+[context.production.environment]
+  APIBARA_API_KEY = "ak_live_t92mKb7ySHB9bMZZ7GnwtS8EmibE09M0iXBTzYTogMShfSIf"
+
+[context.deploy-preview.environment]
+  APIBARA_API_KEY = "ak_live_t92mKb7ySHB9bMZZ7GnwtS8EmibE09M0iXBTzYTogMShfSIf"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
