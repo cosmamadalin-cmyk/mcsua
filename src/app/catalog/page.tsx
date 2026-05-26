@@ -423,7 +423,38 @@ export default function CatalogPage() {
       const data = await res.json();
 
       const rawList: unknown[] = data.data ?? data.vehicles ?? data.lots ?? data.results ?? [];
-      const mappedVehicles = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
+      let mappedVehicles = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
+
+      // Filtrare client-side ca backup (în caz că Apibara ignoră anumiți parametri)
+      if (titleFilter !== "all") {
+        mappedVehicles = mappedVehicles.filter((v) =>
+          titleFilter === "clean"
+            ? v.titleType.toLowerCase().includes("clean")
+            : !v.titleType.toLowerCase().includes("clean")
+        );
+      }
+      if (fuelFilter) {
+        mappedVehicles = mappedVehicles.filter((v) =>
+          v.fuelType.toLowerCase().includes(fuelFilter.toLowerCase()) ||
+          (fuelFilter === "gas" && (v.fuelType.toLowerCase().includes("gasoline") || v.fuelType.toLowerCase().includes("gas"))) ||
+          (fuelFilter === "hybrid" && v.fuelType.toLowerCase().includes("hybrid")) ||
+          (fuelFilter === "electric" && v.fuelType.toLowerCase().includes("electric")) ||
+          (fuelFilter === "diesel" && v.fuelType.toLowerCase().includes("diesel"))
+        );
+      }
+      if (transFilter) {
+        mappedVehicles = mappedVehicles.filter((v) =>
+          v.transmission.toLowerCase().includes(transFilter.toLowerCase())
+        );
+      }
+      if (condFilter) {
+        mappedVehicles = mappedVehicles.filter((v) =>
+          condFilter === "run"
+            ? v.runCondition.toLowerCase().includes("runs")
+            : v.runCondition.toLowerCase().includes("stationary") || v.runCondition.toLowerCase().includes("static")
+        );
+      }
+
       const tot = Number(data.meta?.total ?? data.total ?? rawList.length);
       const pages = Math.max(1, Math.ceil(tot / PER_PAGE) || 1);
 
