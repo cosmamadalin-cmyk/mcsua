@@ -119,12 +119,48 @@ function parseFiltersMeta(raw: any): FiltersMeta {
   console.log("[filters] makes:", Array.isArray(rawMakes) ? rawMakes.length : "not array",
     Array.isArray(rawMakes) && rawMakes.length > 0 ? JSON.stringify(rawMakes[0]).slice(0, 100) : "");
 
+  // Fallback: lista de marci daca API-ul nu returneaza nimic
+  const FALLBACK_MAKES: MakeOption[] = [
+    { name: "ACURA", models: ["ILX","MDX","RDX","TLX","TL","TSX","ZDX"] },
+    { name: "ALFA ROMEO", models: ["Giulia","Giulietta","Stelvio","4C"] },
+    { name: "AUDI", models: ["A3","A4","A5","A6","A7","A8","Q3","Q5","Q7","Q8","TT","R8","e-tron"] },
+    { name: "BMW", models: ["1 Series","2 Series","3 Series","4 Series","5 Series","6 Series","7 Series","8 Series","X1","X2","X3","X4","X5","X6","X7","Z4","M3","M4","M5","i3","i4","iX"] },
+    { name: "BUICK", models: ["Enclave","Encore","Envision","LaCrosse","Regal","Verano"] },
+    { name: "CADILLAC", models: ["ATS","CT4","CT5","CT6","Escalade","SRX","XT4","XT5","XT6","XTS"] },
+    { name: "CHEVROLET", models: ["Blazer","Camaro","Colorado","Corvette","Cruze","Equinox","Express","Impala","Malibu","Silverado","Sonic","Spark","Suburban","Tahoe","Trailblazer","Traverse","Trax"] },
+    { name: "CHRYSLER", models: ["200","300","Pacifica","Town & Country","Voyager"] },
+    { name: "DODGE", models: ["Challenger","Charger","Dart","Durango","Grand Caravan","Journey","Ram 1500"] },
+    { name: "FORD", models: ["Bronco","EcoSport","Edge","Escape","Expedition","Explorer","F-150","F-250","F-350","Fiesta","Flex","Focus","Fusion","Galaxy","Maverick","Mustang","Ranger","Transit"] },
+    { name: "GMC", models: ["Acadia","Canyon","Envoy","Jimmy","Sierra","Terrain","Yukon"] },
+    { name: "HONDA", models: ["Accord","Civic","CR-V","CR-Z","Element","Fit","HR-V","Insight","Odyssey","Passport","Pilot","Ridgeline"] },
+    { name: "HYUNDAI", models: ["Accent","Elantra","Genesis","Ioniq","Kona","Palisade","Santa Fe","Sonata","Tiburon","Tucson","Veloster"] },
+    { name: "INFINITI", models: ["G35","G37","Q30","Q50","Q60","QX30","QX50","QX60","QX80"] },
+    { name: "JAGUAR", models: ["E-Pace","F-Pace","F-Type","I-Pace","XE","XF","XJ"] },
+    { name: "JEEP", models: ["Cherokee","Compass","Gladiator","Grand Cherokee","Patriot","Renegade","Wrangler"] },
+    { name: "KIA", models: ["Cadenza","Forte","K5","Niro","Optima","Rio","Sedona","Seltos","Sorento","Soul","Sportage","Stinger","Telluride"] },
+    { name: "LAND ROVER", models: ["Defender","Discovery","Freelander","Range Rover","Range Rover Evoque","Range Rover Sport","Range Rover Velar"] },
+    { name: "LEXUS", models: ["CT","ES","GS","GX","IS","LC","LS","LX","NX","RC","RX","UX"] },
+    { name: "LINCOLN", models: ["Aviator","Continental","Corsair","MKC","MKT","MKX","MKZ","Navigator"] },
+    { name: "MAZDA", models: ["CX-3","CX-30","CX-5","CX-7","CX-9","Mazda2","Mazda3","Mazda5","Mazda6","MX-5 Miata","RX-8"] },
+    { name: "MERCEDES-BENZ", models: ["A-Class","C-Class","CLA","CLS","E-Class","G-Class","GLA","GLB","GLC","GLE","GLS","S-Class","SL","SLK","Sprinter","V-Class"] },
+    { name: "MINI", models: ["Clubman","Convertible","Countryman","Coupe","Hardtop","Paceman","Roadster"] },
+    { name: "MITSUBISHI", models: ["Eclipse Cross","Galant","Lancer","Mirage","Outlander","Outlander Sport","Raider"] },
+    { name: "NISSAN", models: ["370Z","Altima","Armada","Frontier","GT-R","Kicks","Leaf","Maxima","Murano","Pathfinder","Rogue","Sentra","Titan","Versa","Xterra"] },
+    { name: "PORSCHE", models: ["718","911","Cayenne","Macan","Panamera","Taycan"] },
+    { name: "RAM", models: ["1500","2500","3500","ProMaster"] },
+    { name: "SUBARU", models: ["Ascent","BRZ","Crosstrek","Forester","Impreza","Legacy","Outback","WRX"] },
+    { name: "TESLA", models: ["Model 3","Model S","Model X","Model Y","Roadster","Cybertruck"] },
+    { name: "TOYOTA", models: ["4Runner","Avalon","bZ4X","Camry","C-HR","Corolla","FJ Cruiser","Highlander","Land Cruiser","Prius","RAV4","Sequoia","Sienna","Tacoma","Tundra","Venza","Yaris"] },
+    { name: "VOLKSWAGEN", models: ["Atlas","Golf","ID.4","Jetta","Passat","Polo","Tiguan","Touareg"] },
+    { name: "VOLVO", models: ["C30","C40","C70","S40","S60","S80","S90","V40","V60","V90","XC40","XC60","XC90"] },
+  ];
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const makes: MakeOption[] = Array.isArray(rawMakes) ? (rawMakes as any[]).map((m: any) => ({
+  const makes: MakeOption[] = Array.isArray(rawMakes) && rawMakes.length > 0 ? (rawMakes as any[]).map((m: any) => ({
     name: String(m?.name ?? m?.make ?? m?.value ?? m ?? ""),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     models: Array.isArray(m?.models) ? (m.models as any[]).map((mo: any) => String(mo?.name ?? mo?.model ?? mo?.value ?? mo ?? "")).filter(Boolean) : [],
-  })).filter((m) => m.name).sort((a, b) => a.name.localeCompare(b.name)) : [];
+  })).filter((m) => m.name).sort((a, b) => a.name.localeCompare(b.name)) : FALLBACK_MAKES;
 
   const extra = data?.extra_filters ?? data?.filters ?? data?.options ?? data ?? {};
   return {
@@ -243,10 +279,15 @@ function FilterPanel({
     ? (filtersMeta.makes.find((m) => m.name === filters.make)?.models ?? [])
     : [];
 
-  const fuelOptions = filtersMeta.fuel_types.length > 0 ? filtersMeta.fuel_types : ["Gasoline", "Diesel", "Electric", "Hybrid"];
-  const transOptions = filtersMeta.transmissions.length > 0 ? filtersMeta.transmissions : ["Automatic", "Manual", "CVT"];
-  const driveOptions = filtersMeta.drive_types.length > 0 ? filtersMeta.drive_types : ["AWD", "FWD", "RWD", "4WD"];
-  const condOptions = filtersMeta.run_conditions.length > 0 ? filtersMeta.run_conditions : ["RUNS AND DRIVES", "STATIONARY", "ENHANCED VEHICLE"];
+  // Valori exacte din documentatia Apibara /vehicles endpoint
+  const fuelOptions = filtersMeta.fuel_types.length > 0 ? filtersMeta.fuel_types
+    : ["Gasoline", "Diesel", "Hybrid", "Electric", "Flexible"];
+  const transOptions = filtersMeta.transmissions.length > 0 ? filtersMeta.transmissions
+    : ["Automatic", "Manual", "Unknown"];
+  const driveOptions = filtersMeta.drive_types.length > 0 ? filtersMeta.drive_types
+    : ["AWD", "FWD", "RWD"];
+  const condOptions = filtersMeta.run_conditions.length > 0 ? filtersMeta.run_conditions
+    : ["RUNS AND DRIVES", "STATIONARY", "NO INFORMATION", "ENGINE START PROGRAM"];
 
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
@@ -488,7 +529,7 @@ function FilterPanel({
                 label="Tip daune"
                 value={filters.damage}
                 onChange={set("damage")}
-                options={filtersMeta.damages.length > 0 ? filtersMeta.damages : ["Front End", "Rear End", "Side", "Mechanical", "Water/Flood", "Hail", "Fire", "Rollover", "Undercarriage", "Normal Wear"]}
+                options={filtersMeta.damages.length > 0 ? filtersMeta.damages : ["Mechanical", "Water", "Fire", "Hail", "Theft", "Rollover", "Chemical", "Vandalized", "Repossession"]}
               />
 
               {/* Cylinders */}
