@@ -787,32 +787,34 @@ export default function CatalogPage() {
             </div>
           )}
 
-          {/* Paginare */}
-          {!isLoading && !error && totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 mt-8">
-              <button type="button" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:border-accent hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+          {/* Paginare simplificată - Anterioară/Următoare */}
+          {!isLoading && !error && total > 0 && (
+            <div className="flex items-center justify-center gap-4 mt-10">
+              <button
+                type="button"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl border-2 border-slate-200 bg-white text-slate-700 font-semibold hover:border-accent hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:shadow-md"
+              >
                 <ChevronLeft className="h-5 w-5" />
+                Pagina Anterioară
               </button>
-              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                const pages = Math.min(totalPages, 7);
-                let n: number;
-                if (pages <= 7) n = i + 1;
-                else if (i === 0) n = 1;
-                else if (i === pages - 1) n = totalPages;
-                else n = Math.max(2, Math.min(totalPages - 1, page - 2 + i));
-                return n;
-              }).map((n, idx, arr) => (
-                <span key={`${n}-${idx}`} className="inline-flex items-center gap-1">
-                  {idx > 0 && arr[idx - 1] !== n - 1 && <span className="text-slate-300 text-sm">…</span>}
-                  <button type="button" onClick={() => setPage(n)}
-                    className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all ${page === n ? "bg-accent text-white shadow-md" : "border border-slate-200 text-slate-600 hover:border-accent hover:text-accent"}`}>
-                    {n}
-                  </button>
+
+              <div className="flex flex-col items-center gap-1 px-6">
+                <span className="text-sm text-slate-500 font-medium">Pagina</span>
+                <span className="text-2xl font-bold text-accent">{page}</span>
+                <span className="text-xs text-slate-400">
+                  {total.toLocaleString("ro-RO")} rezultate
                 </span>
-              ))}
-              <button type="button" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                className="p-2 rounded-xl border border-slate-200 text-slate-600 hover:border-accent hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all">
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setPage((p) => p + 1)}
+                disabled={vehicles.length < PER_PAGE}
+                className="flex items-center gap-2 px-5 py-3 rounded-xl border-2 border-slate-200 bg-white text-slate-700 font-semibold hover:border-accent hover:text-accent disabled:opacity-30 disabled:cursor-not-allowed transition-all hover:shadow-md"
+              >
+                Pagina Următoare
                 <ChevronRight className="h-5 w-5" />
               </button>
             </div>
