@@ -16,7 +16,7 @@ export async function GET() {
     if (!response.ok) {
       console.error("Filters API error:", response.status);
       return NextResponse.json(
-        { error: `Apibara filters error: ${response.status}` },
+        { error: `error: ${response.status}` },
         { status: response.status }
       );
     }
