@@ -28,6 +28,72 @@ import { useScrollReveal } from "@/hooks/use-scroll-reveal";
 import { CinematicHeroBackground } from "@/components/cinematic-hero-background";
 import { GoogleReviewsCarousel } from "@/components/google-reviews-carousel";
 
+// ── Vehicle Type & Mapper ──────────────────────────────────────────────────────
+interface Vehicle {
+  id: string; slug: string; platform: "copart" | "iaai"; lotNumber: string; vin: string;
+  year: number; make: string; model: string; trim?: string; color?: string;
+  odometer: number; odometerUnit: string; titleType: string; damage: string;
+  estimatedBid: number; buyNow?: number; auctionDate?: string;
+  location: string; state: string; images: string[]; hasKey: boolean;
+  fuelType: string; transmission: string; engine?: string; runCondition: string; auctionUrl: string;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapApiVehicle(v: any): Vehicle {
+  const platformId = Number(v.platform_id ?? 0);
+  const platformStr = String(v.platform || "").toLowerCase();
+  const platform: "copart" | "iaai" = platformId === 2 || platformStr.includes("iaai") ? "iaai" : "copart";
+  const lotNumber = String(v.lot_number || v.lot || "");
+  const vin = String(v.vin || "");
+  const slug = String(vin || v.slug_vin || v.slug || lotNumber);
+  const media = v.media || {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawImgArr: unknown[] = (media as any).images ?? (media as any).thumbs ?? (media as any).image_urls ?? (media as any).photos ?? v.images ?? v.photos ?? (media as any).items ?? [];
+  const images: string[] = Array.isArray(rawImgArr)
+    ? rawImgArr.map((img: unknown) => {
+        if (typeof img === "string") return img;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const obj = img as any;
+        return String(obj?.full ?? obj?.url ?? obj?.large ?? obj?.thumb ?? obj?.src ?? "");
+      }).filter(Boolean)
+    : v.image ? [String(v.image)] : [];
+  const pricing = v.pricing || {};
+  const bid = Number(pricing.current_bid_usd ?? pricing.current_bid2_usd ?? pricing.buy_now_usd ?? 0);
+  const buyNow = pricing.buy_now_usd ? Number(pricing.buy_now_usd) : undefined;
+  const condition = v.condition || {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rcObj = condition.run_condition as any;
+  const runCondition = rcObj && typeof rcObj === "object" ? String(rcObj.label || rcObj.value || "Unknown") : String(rcObj || "Unknown");
+  const specs = v.vehicle_specs || {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const engObj = specs.engine as any;
+  const engine = engObj && typeof engObj === "object" ? String(engObj.raw || (engObj.size_l ? `${engObj.size_l}L` : "") || "") : (engObj ? String(engObj) : undefined);
+  const fuelType = String(specs.fuel_type || "Gasoline");
+  const transmission = String(specs.transmission || "Automatic");
+  const saleDoc = v.sale_document || {};
+  const titleType = String(saleDoc.name || "Salvage Title");
+  const damage = String(condition.primary_damage || condition.loss || "");
+  const locRaw = v.location;
+  const locationDisplay = !locRaw ? "" : typeof locRaw === "string" ? locRaw : String(locRaw.display || "");
+  const state = !locRaw || typeof locRaw === "string" ? "" : String(locRaw.state || "");
+  const odoObj = v.odometer || {};
+  const odometer = typeof odoObj === "number" ? odoObj : Number(odoObj.mi ?? odoObj.km ?? 0);
+  const odometerUnit = odoObj.km !== undefined && odoObj.mi === undefined ? "km" : "mi";
+  const hasKey = condition.has_key === true || condition.has_key === "With";
+  const auction = v.auction || {};
+  const auctionDateRaw = auction.full_date || auction.date || v.auction_date || "";
+  const auctionDate = auctionDateRaw ? String(auctionDateRaw) : undefined;
+  return {
+    id: String(v.id || lotNumber || vin || Math.random()), slug, platform, lotNumber, vin,
+    year: Number(v.year) || 0, make: String(v.make || ""), model: String(v.model || ""),
+    trim: v.trim ? String(v.trim) : undefined, color: specs.exterior_color ? String(specs.exterior_color) : undefined,
+    odometer, odometerUnit, titleType, damage, estimatedBid: bid, buyNow, auctionDate,
+    location: locationDisplay, state, images, hasKey, fuelType, transmission,
+    engine: engine || undefined, runCondition,
+    auctionUrl: platform === "iaai" ? `https://www.iaai.com/vehicledetail/${lotNumber}~US` : `https://www.copart.com/lot/${lotNumber}`,
+  };
+}
+
 // Lista mărci populare pentru dropdown
 const FALLBACK_MAKES = [
   "Acura","Audi","BMW","Buick","Cadillac","Chevrolet","Chrysler",
@@ -52,6 +118,7 @@ export default function Home() {
   const [platform, setPlatform] = useState(""); // "" | "copart" | "iaai"
   const [model, setModel] = useState("");
   const [makesMeta, setMakesMeta] = useState<{ name: string; models: string[] }[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
   useEffect(() => {
     fetch("/api/vehicles/filters")
@@ -72,6 +139,27 @@ export default function Home() {
         }
       })
       .catch(() => setMakesMeta(FALLBACK_MAKES.map((name) => ({ name, models: [] }))));
+
+    // Fetch BMW, Audi, Mercedes-Benz vehicles and interleave
+    Promise.all([
+      fetch("/api/vehicles?per_page=6&lot_sub_status=Open&make=BMW"),
+      fetch("/api/vehicles?per_page=6&lot_sub_status=Open&make=Audi"),
+      fetch("/api/vehicles?per_page=6&lot_sub_status=Open&make=Mercedes-Benz"),
+    ])
+      .then(async ([r1, r2, r3]) => {
+        const [d1, d2, d3] = await Promise.all([r1.json(), r2.json(), r3.json()]);
+        // Interleave rezultatele: BMW, Audi, Merc, BMW, Audi, Merc...
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const interleaved: any[] = [];
+        const maxLen = Math.max(d1.data?.length ?? 0, d2.data?.length ?? 0, d3.data?.length ?? 0);
+        for (let i = 0; i < maxLen; i++) {
+          if (d1.data?.[i]) interleaved.push(d1.data[i]);
+          if (d2.data?.[i]) interleaved.push(d2.data[i]);
+          if (d3.data?.[i]) interleaved.push(d3.data[i]);
+        }
+        setVehicles(interleaved.slice(0, 12).map(mapApiVehicle));
+      })
+      .catch(() => {});
   }, []);
 
   const availableModels = makesMeta.find((m) => m.name === make)?.models ?? [];
@@ -123,20 +211,19 @@ export default function Home() {
                 Îți aducem mașina dorită din SUA, de la licitație până acasă — simplu, sigur și transparent.
               </p>
 
-              <div className={`flex flex-col sm:flex-row gap-3 sm:gap-5 justify-center pt-2 sm:pt-4 opacity-0 ${mounted ? 'animate-slide-up animate-delay-400' : ''}`}>
-                <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-white btn-premium text-base sm:text-lg h-14 sm:h-16 px-8 sm:px-10 hover-glow shadow-2xl transition-all duration-300 hover:scale-105 w-full sm:w-auto">
-                  <Link href="/contact">Începe Procesul</Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="outline"
-                  className="hero-outline-btn border-2 border-white/40 bg-white/5 hover:bg-accent hover:border-accent text-base sm:text-lg h-14 sm:h-16 px-8 sm:px-10 backdrop-blur-md shadow-xl transition-all duration-300 hover:scale-[1.02] font-semibold w-full sm:w-auto"
+              <div className={`flex flex-wrap gap-3 justify-center pt-2 sm:pt-4 opacity-0 ${mounted ? 'animate-slide-up animate-delay-400' : ''}`}>
+                <Link
+                  href="/catalog"
+                  className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-accent/30 transition-all hover:scale-105 text-base"
                 >
-                  <Link href="/cum-functioneaza">
-                    Cum Funcționează
-                  </Link>
-                </Button>
+                  Caută mașini →
+                </Link>
+                <Link
+                  href="/cum-functioneaza"
+                  className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-semibold px-8 py-3.5 rounded-xl border border-white/30 transition-all hover:scale-105 text-base"
+                >
+                  Cum Funcționează
+                </Link>
               </div>
 
               {/* Trust Indicators - Compact and readable - Responsive */}
@@ -312,63 +399,61 @@ export default function Home() {
       {/* Tipuri de mașini populare */}
       <section ref={featuredCarsReveal.ref} className={`py-24 bg-white transition-all duration-700 ${featuredCarsReveal.isVisible ? "animate-slide-up" : "opacity-0"}`}>
         <div className="container mx-auto px-6">
-          <div className="max-w-3xl mx-auto text-center mb-20">
-            <h2 className="text-4xl md:text-5xl font-bold text-primary mb-6">
-              Descoperă varietatea pieței americane
+          <div className="max-w-3xl mx-auto text-center mb-12">
+            <h2 className="text-4xl md:text-5xl font-bold text-primary mb-4">
+              Mașini la Licitație Acum
             </h2>
-            <p className="text-xl text-muted-foreground leading-relaxed">
-              De la SUV-uri premium la muscle cars iconice, de la pickup-uri robuste la mașini electrice de ultimă generație. Piața americană oferă exact ce îți dorești.
+            <p className="text-lg text-muted-foreground">
+              BMW · Audi · Mercedes-Benz · actualizate zilnic din Copart & IAAI
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            <div className="group cursor-pointer">
-              <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-6 shadow-xl hover:shadow-2xl transition-all duration-500 hover-lift cinematic-overlay image-zoom-container">
-                <img
-                  src="https://ugc.same-assets.com/GvkfqDF9viiJszbsNYv0xg4Xg0lXTNrM.webp"
-                  alt="BMW X5 - SUV Premium"
-                  className="w-full h-full object-cover image-zoom"
-                />
-              </div>
-              <h3 className="text-xl font-bold text-primary mb-2">SUV-uri Premium</h3>
-              <p className="text-muted-foreground">BMW, Mercedes, Audi, Cadillac</p>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {vehicles.map((vehicle) => (
+              <Link key={vehicle.id} href={`/catalog/${vehicle.slug}`} className="group block">
+                <Card className="h-full border border-slate-100 shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden">
+                  <div className="aspect-[4/3] relative overflow-hidden bg-slate-100">
+                    {vehicle.images[0] ? (
+                      <img
+                        src={vehicle.images[0]}
+                        alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-300">
+                        <Car className="h-16 w-16" />
+                      </div>
+                    )}
+                    <div className="absolute top-2 left-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${vehicle.platform === "copart" ? "bg-blue-600 text-white" : "bg-red-600 text-white"}`}>
+                        {vehicle.platform === "copart" ? "Copart" : "IAAI"}
+                      </span>
+                    </div>
+                  </div>
+                  <CardContent className="p-4">
+                    <h3 className="font-bold text-base text-primary mb-2 line-clamp-2">
+                      {vehicle.year} {vehicle.make} {vehicle.model}
+                      {vehicle.trim && ` ${vehicle.trim}`}
+                    </h3>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-slate-400">Bid curent</p>
+                        <p className="text-xl font-bold text-accent">${vehicle.estimatedBid.toLocaleString()}</p>
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {vehicle.state || vehicle.location}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
 
-            <div className="group cursor-pointer">
-              <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-6 shadow-xl hover:shadow-2xl transition-all duration-500 hover-lift cinematic-overlay image-zoom-container">
-                <img
-                  src="https://ugc.same-assets.com/8Kfe7YqF4VLTQpBR4v_mCL8NI8DSTeam.png"
-                  alt="Dodge Charger - Muscle Car"
-                  className="w-full h-full object-cover image-zoom"
-                />
-              </div>
-              <h3 className="text-xl font-bold text-primary mb-2">Muscle Cars</h3>
-              <p className="text-muted-foreground">Dodge Charger, Mustang, Camaro</p>
-            </div>
-
-            <div className="group cursor-pointer">
-              <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-6 shadow-xl hover:shadow-2xl transition-all duration-500 hover-lift cinematic-overlay image-zoom-container">
-                <img
-                  src="https://ugc.same-assets.com/-0tixku9EpjbXEMMpLMyI8TKlrG9uoVT.webp"
-                  alt="RAM 1500 - Pickup Truck"
-                  className="w-full h-full object-cover image-zoom"
-                />
-              </div>
-              <h3 className="text-xl font-bold text-primary mb-2">Pickup Trucks</h3>
-              <p className="text-muted-foreground">RAM, Ford F-150, Silverado</p>
-            </div>
-
-            <div className="group cursor-pointer">
-              <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-6 shadow-xl hover:shadow-2xl transition-all duration-500 hover-lift cinematic-overlay image-zoom-container">
-                <img
-                  src="https://ugc.same-assets.com/XMebOolGfJSHW93R5khFwCazlssqiFr0.png"
-                  alt="Tesla Model 3 - Electric Car"
-                  className="w-full h-full object-cover image-zoom"
-                />
-              </div>
-              <h3 className="text-xl font-bold text-primary mb-2">Mașini Electrice</h3>
-              <p className="text-muted-foreground">Tesla, Rivian, Lucid</p>
-            </div>
+          <div className="text-center mt-12">
+            <Link href="/catalog" className="inline-flex items-center gap-2 bg-accent hover:bg-accent/90 text-white font-bold px-8 py-3.5 rounded-xl shadow-lg shadow-accent/30 transition-all hover:scale-105">
+              Vezi toate mașinile →
+            </Link>
           </div>
         </div>
       </section>

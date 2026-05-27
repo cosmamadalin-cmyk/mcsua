@@ -102,7 +102,7 @@ function mapApiVehicle(v: any): Vehicle {
     odometer, odometerUnit, titleType, damage, estimatedBid: bid, buyNow, auctionDate,
     location: locationDisplay, state, images, hasKey, fuelType, transmission,
     engine: engine || undefined, runCondition,
-    auctionUrl: platform === "iaai" ? `https://www.iaai.com/vehauto/${lotNumber}` : `https://www.copart.com/lot/${lotNumber}`,
+    auctionUrl: platform === "iaai" ? `https://www.iaai.com/vehicledetail/${lotNumber}~US` : `https://www.copart.com/lot/${lotNumber}`,
   };
 }
 
@@ -769,6 +769,19 @@ function CatalogContent() {
           )}
         </div>
       </section>
+
+      {/* Disclaimer delay */}
+      <div className="container mx-auto px-4 sm:px-6 pt-3 pb-0">
+        <p className="text-xs text-slate-400 flex items-center gap-1.5">
+          <span>🕐</span>
+          <span>
+            Datele pot avea un delay de câteva minute față de platformele sursă. Verifică disponibilitatea în timp real direct pe{" "}
+            <a href="https://www.copart.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent transition-colors">copart.com ↗</a>
+            {" "}sau{" "}
+            <a href="https://www.iaai.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent transition-colors">iaai.com ↗</a>.
+          </span>
+        </p>
+      </div>
 
       {/* Mobile filter button */}
       <div className="lg:hidden sticky top-[73px] z-30 bg-white border-b border-slate-100 px-4 py-2 flex items-center justify-between shadow-sm">

@@ -166,7 +166,7 @@ function mapDetailVehicle(v: any): VehicleDetail {
     airbags: specs.airbags ? String(specs.airbags) : undefined,
     runCondition,
     auctionUrl: platform === "iaai"
-      ? `https://www.iaai.com/vehauto/${lotNumber}`
+      ? `https://www.iaai.com/vehicledetail/${lotNumber}~US`
       : `https://www.copart.com/lot/${lotNumber}`,
   };
 }
@@ -328,6 +328,13 @@ function CostCalculator({
             Obține Detalii
           </Link>
         </Button>
+        <Link
+          href="/cum-functioneaza"
+          className="w-full flex items-center justify-center gap-2 border border-slate-200 text-slate-500 font-semibold px-4 py-2.5 rounded-xl text-sm hover:border-accent hover:text-accent transition-all mt-2"
+        >
+          <Info className="h-4 w-4" />
+          Cum funcționează importul?
+        </Link>
       </div>
 
       {/* ── COSTURI SUA ── */}
@@ -788,6 +795,17 @@ export default function VehicleDetailPage() {
         <div className="mb-8">
           <ImageGallery images={vehicle.images} title={title} />
         </div>
+
+        {/* Disclaimer delay */}
+        <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-3 mb-6">
+          <span>🕐</span>
+          <span>
+            Datele pot avea un delay față de platformă. Verifică în timp real pe{" "}
+            <a href="https://www.copart.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent transition-colors">copart.com ↗</a>
+            {" "}sau{" "}
+            <a href="https://www.iaai.com" target="_blank" rel="noopener noreferrer" className="underline hover:text-accent transition-colors">iaai.com ↗</a>.
+          </span>
+        </p>
 
         {/* ── Main content ── */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
