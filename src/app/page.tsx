@@ -29,8 +29,7 @@ import { CinematicHeroBackground } from "@/components/cinematic-hero-background"
 import { GoogleReviewsCarousel } from "@/components/google-reviews-carousel";
 
 // Lista mărci populare pentru dropdown
-const MAKES = [
-  "Toate mărcile",
+const FALLBACK_MAKES = [
   "Acura","Audi","BMW","Buick","Cadillac","Chevrolet","Chrysler",
   "Dodge","Ferrari","Ford","Genesis","GMC","Honda","Hyundai",
   "Infiniti","Jaguar","Jeep","Kia","Land Rover","Lexus",
@@ -51,11 +50,37 @@ export default function Home() {
   const [yearFrom, setYearFrom] = useState("");
   const [yearTo, setYearTo] = useState("");
   const [platform, setPlatform] = useState(""); // "" | "copart" | "iaai"
+  const [model, setModel] = useState("");
+  const [makesMeta, setMakesMeta] = useState<{ name: string; models: string[] }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/vehicles/filters")
+      .then((r) => r.json())
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then((raw: any) => {
+        const data = raw?.data ?? raw ?? {};
+        const makeModel = data?.make_model ?? {};
+        const makesArr: string[] = Array.isArray(makeModel?.makes) ? makeModel.makes : [];
+        const modelsByMake: Record<string, string[]> = makeModel?.models_by_make ?? {};
+        if (makesArr.length > 0) {
+          setMakesMeta(makesArr.map((name: string) => ({
+            name,
+            models: Array.isArray(modelsByMake[name]) ? modelsByMake[name] : [],
+          })));
+        } else {
+          setMakesMeta(FALLBACK_MAKES.map((name) => ({ name, models: [] })));
+        }
+      })
+      .catch(() => setMakesMeta(FALLBACK_MAKES.map((name) => ({ name, models: [] }))));
+  }, []);
+
+  const availableModels = makesMeta.find((m) => m.name === make)?.models ?? [];
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     const params = new URLSearchParams();
-    if (make && make !== "Toate mărcile") params.set("make", make);
+    if (make) params.set("make", make);
+    if (model) params.set("model", model);
     if (searchQ) params.set("search", searchQ);
     if (yearFrom) params.set("year_from", yearFrom);
     if (yearTo) params.set("year_to", yearTo);
@@ -151,18 +176,36 @@ export default function Home() {
             </div>
 
             <form onSubmit={handleSearch} className="bg-slate-50 rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200">
-              {/* Marcă */}
-              <div className="mb-4">
-                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Marcă</label>
-                <select
-                  value={make}
-                  onChange={(e) => setMake(e.target.value)}
-                  className="w-full sm:w-56 border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
-                >
-                  {MAKES.map((m) => (
-                    <option key={m} value={m === "Toate mărcile" ? "" : m}>{m}</option>
-                  ))}
-                </select>
+              {/* Marcă și Model */}
+              <div className="mb-4 flex flex-wrap gap-3 items-end">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Marcă</label>
+                  <select
+                    value={make}
+                    onChange={(e) => { setMake(e.target.value); setModel(""); }}
+                    className="w-full sm:w-52 border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                  >
+                    <option value="">Toate mărcile</option>
+                    {makesMeta.map((m) => (
+                      <option key={m.name} value={m.name}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                {make && availableModels.length > 0 && (
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest block mb-1.5">Model</label>
+                    <select
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="w-full sm:w-52 border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+                    >
+                      <option value="">Toate modelele</option>
+                      {availableModels.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* VIN / lot */}

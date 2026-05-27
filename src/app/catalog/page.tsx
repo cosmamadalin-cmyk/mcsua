@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,10 +59,16 @@ function mapApiVehicle(v: any): Vehicle {
   const vin = String(v.vin || "");
   const slug = String(vin || v.slug_vin || v.slug || lotNumber);
   const media = v.media || {};
-  let images: string[] = [];
-  if (Array.isArray(media.thumbs)) images = (media.thumbs as unknown[]).filter((s): s is string => typeof s === "string");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  else if (Array.isArray(media.items)) images = (media.items as any[]).map((i) => String(i.full || i.large || i.thumb || "")).filter(Boolean);
+  const rawImgArr: unknown[] = (media as any).images ?? (media as any).thumbs ?? (media as any).image_urls ?? (media as any).photos ?? v.images ?? v.photos ?? (media as any).items ?? [];
+  const images: string[] = Array.isArray(rawImgArr)
+    ? rawImgArr.map((img: unknown) => {
+        if (typeof img === "string") return img;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const obj = img as any;
+        return String(obj?.full ?? obj?.url ?? obj?.large ?? obj?.thumb ?? obj?.src ?? "");
+      }).filter(Boolean)
+    : v.image ? [String(v.image)] : [];
   const pricing = v.pricing || {};
   const bid = Number(pricing.current_bid_usd ?? pricing.current_bid2_usd ?? pricing.buy_now_usd ?? 0);
   const buyNow = pricing.buy_now_usd ? Number(pricing.buy_now_usd) : undefined;
@@ -665,6 +672,12 @@ export default function CatalogPage() {
   const [filtersMeta, setFiltersMeta] = useState<FiltersMeta>({ makes: [], vehicle_types: [], fuel_types: [], transmissions: [], drive_types: [], run_conditions: [], damages: [], colors: [], cylinders: [] });
   const [filtersLoading, setFiltersLoading] = useState(true);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const searchParams = useSearchParams();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cursorsRef = useRef<Record<number, string>>({1: ""});
+
   const PER_PAGE = 12;
 
   // Incarc filtrele de la Apibara
@@ -672,10 +685,25 @@ export default function CatalogPage() {
     fetch("/api/vehicles/filters").then((r) => r.json()).then((data) => setFiltersMeta(parseFiltersMeta(data))).catch(() => {}).finally(() => setFiltersLoading(false));
   }, []);
 
+  useEffect(() => {
+    const make = searchParams.get("make") || "";
+    const model = searchParams.get("model") || "";
+    const search = searchParams.get("search") || "";
+    const yearFrom = searchParams.get("year_from") || "";
+    const yearTo = searchParams.get("year_to") || "";
+    const platform = searchParams.get("auction_type") || "";
+    if (make || model || search || yearFrom || yearTo || platform) {
+      setFilters(prev => ({ ...prev, make, model, search, yearFrom, yearTo, platform }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const fetchVehicles = useCallback(async () => {
     setIsLoading(true); setError(null);
     try {
       const p = new URLSearchParams();
+      const cursor = cursorsRef.current[page] ?? "";
+      if (cursor) p.set("cursor", cursor);
       if (filters.search) p.set("s", filters.search);
       if (filters.platform) p.set("auction_type", filters.platform);
       if (filters.lotStatus) p.set("lot_status", filters.lotStatus);
@@ -712,15 +740,17 @@ export default function CatalogPage() {
       const mapped = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
       const tot = Number(data.meta?.total ?? data.total ?? rawList.length);
       setVehicles(mapped); setTotal(tot); setTotalPages(Math.max(1, Math.ceil(tot / PER_PAGE) || 1));
+      const nextCursor = String(data.meta?.next_cursor ?? data.meta?.cursor ?? data.next_cursor ?? "");
+      if (nextCursor) cursorsRef.current[page + 1] = nextCursor;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nu s-au putut încărca datele."); setVehicles([]); setTotal(0); setTotalPages(1);
     } finally { setIsLoading(false); }
   }, [filters, page]);
 
-  useEffect(() => { fetchVehicles(); }, [fetchVehicles]);
+  useEffect(() => { fetchVehicles(); }, [fetchVehicles, refreshTrigger]);
 
-  const handleSetFilters = (f: Filters) => { setFilters(f); setPage(1); };
-  const resetFilters = () => { setFilters(DEFAULT_FILTERS); setPage(1); };
+  const handleSetFilters = (f: Filters) => { cursorsRef.current = {1: ""}; setFilters(f); setPage(1); };
+  const resetFilters = () => { cursorsRef.current = {1: ""}; setFilters(DEFAULT_FILTERS); setPage(1); };
 
   return (
     <main className="min-h-screen bg-slate-50">
