@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -661,7 +661,7 @@ function SkeletonCard() {
 }
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
-export default function CatalogPage() {
+function CatalogContent() {
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [total, setTotal] = useState(0);
@@ -881,5 +881,13 @@ export default function CatalogPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+export default function CatalogPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><p>Se încarcă...</p></div>}>
+      <CatalogContent />
+    </Suspense>
   );
 }
