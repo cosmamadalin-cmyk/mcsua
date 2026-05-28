@@ -175,10 +175,29 @@ function mapDetailVehicle(v: any): VehicleDetail {
     ? String(sellerObj.name || "")
     : (sellerObj ? String(sellerObj) : undefined);
 
-  // Auction date
+  // Auction date - handle multiple formats
   const auction = v.auction || {};
-  const auctionDateRaw = auction.full_date || auction.date || v.auction_date || "";
-  const auctionDate = auctionDateRaw ? String(auctionDateRaw) : undefined;
+  let auctionDateRaw = auction.full_date || auction.date || auction.datetime || v.auction_date || v.sale_date || "";
+
+  // If auction is a string (sometimes API returns ISO string directly)
+  if (typeof auction === 'string') {
+    auctionDateRaw = auction;
+  }
+
+  // Convert to ISO string if needed
+  let auctionDate: string | undefined = undefined;
+  if (auctionDateRaw) {
+    try {
+      const dateStr = String(auctionDateRaw);
+      // Try to parse and validate
+      const testDate = new Date(dateStr);
+      if (!isNaN(testDate.getTime())) {
+        auctionDate = dateStr;
+      }
+    } catch (error) {
+      console.error("Failed to parse auction date:", auctionDateRaw);
+    }
+  }
 
   return {
     slug,
@@ -319,9 +338,30 @@ function AuctionCountdown({ auctionDate }: { auctionDate?: string }) {
 
     const calculateTimeLeft = () => {
       try {
-        const auctionTime = new Date(auctionDate).getTime();
+        // Parse date - handle different formats
+        let auctionTime: number;
+
+        // Try parsing as ISO string first
+        const parsedDate = new Date(auctionDate);
+
+        // Check if date is valid
+        if (isNaN(parsedDate.getTime())) {
+          console.error("Invalid auction date format:", auctionDate);
+          setTimeLeft(null);
+          return;
+        }
+
+        auctionTime = parsedDate.getTime();
         const now = new Date().getTime();
         const difference = auctionTime - now;
+
+        // Debug log (only in development)
+        if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+          console.log('Auction Date:', auctionDate);
+          console.log('Parsed Time:', new Date(auctionTime).toLocaleString());
+          console.log('Current Time:', new Date(now).toLocaleString());
+          console.log('Difference (ms):', difference);
+        }
 
         if (difference <= 0) {
           setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 });
@@ -335,7 +375,7 @@ function AuctionCountdown({ auctionDate }: { auctionDate?: string }) {
 
         setTimeLeft({ days, hours, minutes, seconds, total: difference });
       } catch (error) {
-        console.error("Invalid auction date:", error);
+        console.error("Error calculating auction countdown:", error, "Date:", auctionDate);
         setTimeLeft(null);
       }
     };
