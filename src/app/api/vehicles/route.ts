@@ -77,9 +77,9 @@ export async function GET(request: NextRequest) {
 
     if (!response.ok) {
       const body = await response.text();
-      console.error(`API ${response.status}:`, body.slice(0, 200));
+      console.error(`Apibara ${response.status}:`, body.slice(0, 200));
       return NextResponse.json(
-        { error: `error: ${response.status}`, details: body.slice(0, 200) },
+        { error: `Apibara error: ${response.status}`, details: body.slice(0, 200) },
         { status: response.status }
       );
     }
