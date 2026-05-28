@@ -202,39 +202,75 @@ function tCondition(v: string): string {
   return v;
 }
 
-// ── Buyer fee calculators ──────────────────────────────────────────────────────
-function copartFee(bid: number): number {
-  if (bid < 100) return 25;
-  if (bid < 500) return 55;
-  if (bid < 1000) return 80;
-  if (bid < 1500) return 100;
-  if (bid < 2000) return 130;
-  if (bid < 3000) return 165;
-  if (bid < 4000) return 195;
-  if (bid < 5000) return 225;
-  if (bid < 6000) return 260;
-  if (bid < 7000) return 290;
-  if (bid < 8000) return 315;
-  if (bid < 9000) return 340;
-  if (bid < 10000) return 365;
-  if (bid < 11000) return 390;
-  if (bid < 12000) return 415;
-  return Math.round(bid * 0.07);
+// ── Auction fee calculator ────────────────────────────────────────────────────
+function auctionFee(bid: number, platform: "copart" | "iaai"): number {
+  const minFee = 600;
+  const pct = platform === "iaai" ? 0.10 : 0.125;
+  return bid < 6000 ? minFee : Math.round(bid * pct);
 }
 
-function iaaiFee(bid: number): number {
-  if (bid < 100) return 25;
-  if (bid < 500) return 50;
-  if (bid < 1000) return 125;
-  if (bid < 1500) return 150;
-  if (bid < 2000) return 175;
-  if (bid < 3000) return 200;
-  if (bid < 4000) return 225;
-  if (bid < 5000) return 250;
-  if (bid < 7000) return 275;
-  if (bid < 10000) return 325;
-  if (bid < 15000) return 375;
-  return Math.round(bid * 0.065);
+// ── Transport info per state ───────────────────────────────────────────────────
+function getTransportInfo(state: string): { port: string; cost: number } {
+  const s = (state || "").toUpperCase().trim();
+  const map: Record<string, { port: string; cost: number }> = {
+    AL: { port: "Savannah",  cost: 1610 },
+    AZ: { port: "Houston",   cost: 2400 },
+    AR: { port: "Houston",   cost: 1730 },
+    CA: { port: "Houston",   cost: 2400 },
+    NC: { port: "Savannah",  cost: 1645 },
+    SC: { port: "Savannah",  cost: 1560 },
+    CO: { port: "Houston",   cost: 2400 },
+    CT: { port: "New York",  cost: 1540 },
+    ND: { port: "New York",  cost: 1910 },
+    SD: { port: "New York",  cost: 1900 },
+    DE: { port: "New York",  cost: 1570 },
+    FL: { port: "Florida",   cost: 1580 },
+    GA: { port: "Savannah",  cost: 1565 },
+    ID: { port: "Houston",   cost: 2570 },
+    IL: { port: "New York",  cost: 1765 },
+    IN: { port: "New York",  cost: 1755 },
+    IA: { port: "Savannah",  cost: 1825 },
+    KS: { port: "Houston",   cost: 1765 },
+    KY: { port: "Savannah",  cost: 1610 },
+    LA: { port: "Houston",   cost: 1650 },
+    ME: { port: "New York",  cost: 1675 },
+    MD: { port: "New York",  cost: 1575 },
+    MA: { port: "New York",  cost: 1590 },
+    MI: { port: "New York",  cost: 1630 },
+    MN: { port: "New York",  cost: 1840 },
+    MS: { port: "Houston",   cost: 1580 },
+    MO: { port: "Houston",   cost: 1695 },
+    MT: { port: "Houston",   cost: 2565 },
+    NE: { port: "Houston",   cost: 1875 },
+    NV: { port: "Houston",   cost: 2400 },
+    NH: { port: "New York",  cost: 1675 },
+    NJ: { port: "New York",  cost: 1570 },
+    NM: { port: "Houston",   cost: 1765 },
+    NY: { port: "New York",  cost: 1500 },
+    OH: { port: "New York",  cost: 1690 },
+    OK: { port: "Houston",   cost: 1630 },
+    OR: { port: "Houston",   cost: 2640 },
+    PA: { port: "New York",  cost: 1650 },
+    RI: { port: "New York",  cost: 1590 },
+    TX: { port: "Houston",   cost: 1500 },
+    TN: { port: "Savannah",  cost: 1650 },
+    UT: { port: "Houston",   cost: 2470 },
+    VT: { port: "New York",  cost: 1620 },
+    VA: { port: "New York",  cost: 1545 },
+    WV: { port: "New York",  cost: 1595 },
+    DC: { port: "New York",  cost: 1565 },
+    WI: { port: "New York",  cost: 1680 },
+    WY: { port: "Houston",   cost: 2175 },
+  };
+  return map[s] ?? { port: "De confirmat", cost: 0 };
+}
+
+// ── Romania transport cost by body type ────────────────────────────────────────
+function getRoTransportCost(bodyType?: string): number {
+  const b = (bodyType || "").toLowerCase();
+  if (b.includes("pickup") || b.includes("truck")) return 1100;
+  if (b.includes("suv") || b.includes("crossover") || b.includes("van") || b.includes("minivan")) return 900;
+  return 850;
 }
 
 // ── Cost calculator sidebar ────────────────────────────────────────────────────
@@ -244,33 +280,39 @@ function CostCalculator({
   vehicle: VehicleDetail;
 }) {
   const isSalvage = vehicle.titleType?.toLowerCase().includes("salvage");
+  const transportInfo = getTransportInfo(vehicle.state || "");
+  const roTransportCost = getRoTransportCost(vehicle.bodyType);
+
+  const isHybridOrElectric = ["electric", "hybrid", "plug-in"].some(
+    (k) => (vehicle.fuelType || "").toLowerCase().includes(k)
+  );
 
   const [bidPrice, setBidPrice] = useState(vehicle.estimatedBid || 0);
   const [eurUsdRate, setEurUsdRate] = useState(0.92);
-  const [usTransport, setUsTransport] = useState(550);
-  const [oceanFreight, setOceanFreight] = useState(1050);
   const [includeSalvageTitle, setIncludeSalvageTitle] = useState(isSalvage);
+  const [includePortTax, setIncludePortTax] = useState(isHybridOrElectric);
   const [includeInsurance, setIncludeInsurance] = useState(false);
-  const [includeRoTransport, setIncludeRoTransport] = useState(false);
+  const [includeRoTransport, setIncludeRoTransport] = useState(true);
 
   // ── COSTURI SUA ──
-  const buyerFee = vehicle.platform === "iaai" ? iaaiFee(bidPrice) : copartFee(bidPrice);
-  const salvageTitleCost = includeSalvageTitle ? 480 : 0;
-  const totalUSA = bidPrice + buyerFee + usTransport + salvageTitleCost + oceanFreight;
+  const buyerFee = auctionFee(bidPrice, vehicle.platform);
+  const portTax = includePortTax ? 400 : 0;
+  const usaTransport = transportInfo.cost;
+  const salvageTitleCost = includeSalvageTitle ? 550 : 0;
+  const totalUSA = bidPrice + buyerFee + portTax + usaTransport + salvageTitleCost;
 
   // Valoare declarație vamală = Total SUA (USD), convertit în EUR
   const cifEUR = totalUSA * eurUsdRate;
 
   // ── COSTURI UE ──
-  // 6. Valoare declarație vamală = cifEUR (baza pentru taxe)
-  const insurance = includeInsurance ? cifEUR * 0.029 : 0;   // 2.90% — opțional
-  const customsDuty = cifEUR * 0.10;                          // 8. Taxă vamală 10%
-  const tva = cifEUR * 0.21;                                  // 9. TVA Rotterdam 21%
-  const commissionMCSUA = 1000;                               // 10. Comision MC SUA
-  const containerUnload = 500;                                // 11. Descărcare container
-  const roTransport = includeRoTransport ? 850 : 0;           // 12. Transport România — opțional
+  const insurance = includeInsurance ? cifEUR * 0.01 : 0;
+  const customsDuty = cifEUR * 0.10;
+  const tva = (cifEUR + customsDuty) * 0.21;
+  const commissionMCSUA = 1000;
+  const portHandling = 500;
+  const roTransport = includeRoTransport ? roTransportCost : 0;
 
-  const totalEU = insurance + customsDuty + tva + commissionMCSUA + containerUnload + roTransport;
+  const totalEU = insurance + customsDuty + tva + commissionMCSUA + portHandling + roTransport;
 
   // TOTAL GENERAL = Total SUA în EUR + Total UE
   const totalGeneral = cifEUR + totalEU;
@@ -343,22 +385,42 @@ function CostCalculator({
           Costuri SUA
         </h3>
         <div className="space-y-2">
-          <CostRow num={1} label="Preț lot" value={fmtUSD(bidPrice)} highlight />
+          <CostRow
+            num={1}
+            label="Preț lot"
+            value={fmtUSD(bidPrice)}
+            highlight
+            tooltip="Bid-ul curent afișat nu reprezintă prețul final de achiziție. Prețul final poate fi mai mare în funcție de licitație."
+          />
           <CostRow
             num={2}
-            label={`Taxe licitație`}
-            sublabel={vehicle.platform === "iaai" ? "iaai.com" : "copart.com"}
+            label="Taxe licitație"
+            sublabel={vehicle.platform === "iaai" ? "IAAI · 10% (min. $600)" : "Copart · 12.5% (min. $600)"}
             value={fmtUSD(buyerFee)}
+            tooltip="Sub $6.000 taxă minimă $600. Peste $6.000: IAAI 10% / Copart 12.5%. MC SUA nu adaugă taxe de broker."
           />
-          <CostRow num={3} label="Transport la port" sublabel={vehicle.state || "New York"} value={fmtUSD(usTransport)} />
+          <CostRow
+            num={3}
+            label="Transport SUA → Rotterdam"
+            sublabel={`${transportInfo.port} · 4-6 săptămâni`}
+            value={transportInfo.cost > 0 ? fmtUSD(usaTransport) : "De confirmat"}
+          />
           <CheckRow
             num={4}
-            label="Salvage → Schimbare certificat de titlu"
-            value={fmtUSD(480)}
+            label="Taxă port USA – Hibrid/Electric"
+            sublabel="$400 · aplicabil vehiculelor hibrid sau electrice"
+            value={fmtUSD(400)}
+            checked={includePortTax}
+            onChange={setIncludePortTax}
+          />
+          <CheckRow
+            num={5}
+            label="Schimbare certificat de titlu"
+            sublabel="Salvage → Clean · $550 în regim de urgență (3 zile lucrătoare)"
+            value={fmtUSD(550)}
             checked={includeSalvageTitle}
             onChange={setIncludeSalvageTitle}
           />
-          <CostRow num={5} label="Transport maritim" sublabel="17-20 zile" value={fmtUSD(oceanFreight)} />
         </div>
         <div className="flex justify-between items-center mt-3 py-2.5 border-t border-slate-100">
           <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">1 – 5  TOTAL SUA</span>
@@ -383,26 +445,44 @@ function CostCalculator({
           </div>
           <CheckRow
             num={7}
-            label="Asigurare Transport"
-            sublabel="(2.90%)"
+            label="Asigurare transport maritim"
+            sublabel="(1% din valoarea bunului)"
             value={fmt(insurance)}
             checked={includeInsurance}
             onChange={setIncludeInsurance}
           />
-          <CostRow num={8} label="Taxă vamală" sublabel="(10.00%)" value={fmt(customsDuty)} />
-          <CostRow num={9} label="TVA Rotterdam" sublabel="(21.00%)" value={fmt(tva)} />
-          <CostRow num={10} label="Comision MC SUA" value={fmt(commissionMCSUA)} />
-          <CostRow num={11} label="Servicii descărcare container" value={fmt(containerUnload)} />
+          <CostRow num={8} label="Taxă vamală" sublabel="(10%)" value={fmt(customsDuty)} />
+          <CostRow
+            num={9}
+            label="TVA"
+            sublabel="(21%)"
+            value={fmt(tva)}
+            tooltip="Dacă achiziția se face pe firmă plătitoare de TVA, taxa nu se mai plătește la import."
+          />
+          <CostRow num={10} label="Comision intermediere MC SUA" value={fmt(commissionMCSUA)} />
+          <CostRow
+            num={11}
+            label="Manipulare în port"
+            value={fmt(portHandling)}
+            tooltip="Valoare orientativă. Costul final poate varia în funcție de port și dimensiunile vehiculului."
+          />
           <CheckRow
             num={12}
-            label="Transport către România"
-            value={fmt(850)}
+            label="Rotterdam → România"
+            sublabel={
+              vehicle.bodyType?.toLowerCase().includes("pickup") || vehicle.bodyType?.toLowerCase().includes("truck")
+                ? "Pickup · €1.100"
+                : vehicle.bodyType?.toLowerCase().includes("suv") || vehicle.bodyType?.toLowerCase().includes("crossover") || vehicle.bodyType?.toLowerCase().includes("van")
+                ? "SUV · €900"
+                : "Sedan · €850"
+            }
+            value={fmt(roTransportCost)}
             checked={includeRoTransport}
             onChange={setIncludeRoTransport}
           />
         </div>
         <div className="flex justify-between items-center mt-3 py-2.5 border-t border-slate-100">
-          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">5 – 12  TOTAL UE</span>
+          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">6 – 12  TOTAL IMPORT</span>
           <span className="text-sm font-extrabold text-primary">{fmt(totalEU)}</span>
         </div>
       </div>
@@ -423,22 +503,6 @@ function CostCalculator({
               min={0.5}
               max={2}
             />
-            <AdvancedInput
-              label="Transport la port (USD)"
-              value={usTransport}
-              onChange={setUsTransport}
-              step={25}
-              min={0}
-              prefix="$"
-            />
-            <AdvancedInput
-              label="Transport maritim (USD)"
-              value={oceanFreight}
-              onChange={setOceanFreight}
-              step={50}
-              min={0}
-              prefix="$"
-            />
           </div>
         </details>
         <p className="text-center text-xs text-slate-400 mt-3">
@@ -455,20 +519,43 @@ function CostRow({
   sublabel,
   value,
   highlight,
+  tooltip,
 }: {
   num: number;
   label: string;
   sublabel?: string;
   value: string;
   highlight?: boolean;
+  tooltip?: string;
 }) {
+  const [showTooltip, setShowTooltip] = useState(false);
+
   return (
     <div className="flex justify-between items-start gap-2">
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2 flex-1">
         <span className="text-[10px] text-slate-400 font-medium w-4 flex-shrink-0 mt-0.5">{num}.</span>
-        <div>
-          <span className={`text-xs ${highlight ? "font-bold text-primary" : "text-slate-600"}`}>{label}</span>
-          {sublabel && <span className="block text-[10px] text-slate-400">{sublabel}</span>}
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className={`text-xs ${highlight ? "font-bold text-primary" : "text-slate-600"}`}>{label}</span>
+            {tooltip && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onMouseEnter={() => setShowTooltip(true)}
+                  onMouseLeave={() => setShowTooltip(false)}
+                  className="text-slate-400 hover:text-accent transition-colors"
+                >
+                  <Info className="h-3 w-3" />
+                </button>
+                {showTooltip && (
+                  <div className="absolute left-0 top-full mt-1 w-56 bg-slate-800 text-white text-xs p-2 rounded-lg shadow-lg z-50">
+                    {tooltip}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {sublabel && <span className="block text-[10px] text-slate-400 mt-0.5">{sublabel}</span>}
         </div>
       </div>
       <span className={`text-xs font-semibold whitespace-nowrap ${highlight ? "text-primary" : "text-slate-700"}`}>
