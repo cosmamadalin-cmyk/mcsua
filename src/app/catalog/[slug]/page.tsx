@@ -47,6 +47,8 @@ interface VehicleDetail {
   location: string;
   state: string;
   images: string[];
+  videoUrl?: string;
+  has360?: boolean;
   hasKey: boolean;
   fuelType: string;
   transmission: string;
@@ -75,14 +77,58 @@ function mapDetailVehicle(v: any): VehicleDetail {
   const vin = String(v.vin || "");
   const slug = String(vin || v.slug_vin || v.slug || lotNumber);
 
-  // Imagini: media.thumbs = array de URL string-uri
+  // Imagini HD + Video + 360
   const media = v.media || {};
   let images: string[] = [];
-  if (Array.isArray(media.thumbs)) {
-    images = (media.thumbs as unknown[]).filter((s): s is string => typeof s === "string");
-  } else if (Array.isArray(media.items)) {
+  let videoUrl: string | undefined = undefined;
+  const has360 = media.has_360 === true;
+
+  // Extrage imagini HD din media.items (prioritate: large)
+  if (Array.isArray(media.items)) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    images = (media.items as any[]).map((i) => String(i.full || i.large || i.thumb || "")).filter(Boolean);
+    const items = media.items as any[];
+
+    // Imagini: folosește large, nu thumb
+    const imageItems = items.filter((i) => i.type !== "video");
+    images = imageItems.map((i) => {
+      let url = String(i.large || i.thumb || "");
+      // Pentru IAAI: înlocuiește cu rezoluție maximă
+      if (url.includes("vis.iaai.com/resizer")) {
+        url = url.replace(/width=\d+&height=\d+/, "width=2576&height=1932");
+      }
+      return url;
+    }).filter(Boolean);
+
+    // Video: extrage primul element cu type="video"
+    const videoItem = items.find((i) => i.type === "video");
+    if (videoItem) {
+      videoUrl = String(videoItem.large || videoItem.url || videoItem.thumb || "");
+    }
+  }
+
+  // Fallback la media.thumbs (array de string-uri)
+  if (images.length === 0 && Array.isArray(media.thumbs)) {
+    images = (media.thumbs as unknown[])
+      .filter((s): s is string => typeof s === "string")
+      .map((url) => {
+        // Pentru IAAI: înlocuiește cu rezoluție maximă
+        if (url.includes("vis.iaai.com/resizer")) {
+          return url.replace(/width=\d+&height=\d+/, "width=2576&height=1932");
+        }
+        return url;
+      });
+  }
+
+  // Fallback la media.images
+  if (images.length === 0 && Array.isArray(media.images)) {
+    images = (media.images as unknown[])
+      .filter((s): s is string => typeof s === "string")
+      .map((url) => {
+        if (url.includes("vis.iaai.com/resizer")) {
+          return url.replace(/width=\d+&height=\d+/, "width=2576&height=1932");
+        }
+        return url;
+      });
   }
 
   // Pret: pricing.current_bid_usd
@@ -155,6 +201,8 @@ function mapDetailVehicle(v: any): VehicleDetail {
     location: locationDisplay,
     state,
     images,
+    videoUrl,
+    has360,
     hasKey,
     fuelType: String(specs.fuel_type || "Gasoline"),
     transmission: String(specs.transmission || "Automatic"),
@@ -826,12 +874,31 @@ function SpecRow({ label, value }: { label: string; value?: string | number | bo
 }
 
 // ── Image gallery ──────────────────────────────────────────────────────────────
-function ImageGallery({ images, title }: { images: string[]; title: string }) {
+function ImageGallery({
+  images,
+  title,
+  videoUrl,
+  has360,
+  lotNumber,
+  platform
+}: {
+  images: string[];
+  title: string;
+  videoUrl?: string;
+  has360?: boolean;
+  lotNumber: string;
+  platform: "copart" | "iaai";
+}) {
   const [activeIdx, setActiveIdx] = useState(0);
   const [imgError, setImgError] = useState(false);
 
   const prev = () => setActiveIdx((i) => Math.max(0, i - 1));
   const next = () => setActiveIdx((i) => Math.min(images.length - 1, i + 1));
+
+  // Construiește URL-ul pentru 360 view (doar IAAI)
+  const view360Url = has360 && platform === "iaai"
+    ? `https://vis.iaai.com/360?imageKeys=${lotNumber}~SID~I1`
+    : undefined;
 
   if (images.length === 0) {
     return (
@@ -897,6 +964,34 @@ function ImageGallery({ images, title }: { images: string[]; title: string }) {
               <img src={img} alt="" className="w-full h-full object-cover" />
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Video & 360 View Buttons */}
+      {(videoUrl || view360Url) && (
+        <div className="flex gap-2">
+          {videoUrl && (
+            <a
+              href={videoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent/90 text-white font-semibold rounded-lg transition-all text-sm shadow-md"
+            >
+              <ExternalLink className="h-4 w-4" />
+              ▶ Video
+            </a>
+          )}
+          {view360Url && (
+            <a
+              href={view360Url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-all text-sm shadow-md"
+            >
+              <ExternalLink className="h-4 w-4" />
+              360°
+            </a>
+          )}
         </div>
       )}
     </div>
@@ -1054,7 +1149,14 @@ export default function VehicleDetailPage() {
 
         {/* ── Gallery ── */}
         <div className="mb-8">
-          <ImageGallery images={vehicle.images} title={title} />
+          <ImageGallery
+            images={vehicle.images}
+            title={title}
+            videoUrl={vehicle.videoUrl}
+            has360={vehicle.has360}
+            lotNumber={vehicle.lotNumber}
+            platform={vehicle.platform}
+          />
         </div>
 
         {/* Disclaimer delay */}

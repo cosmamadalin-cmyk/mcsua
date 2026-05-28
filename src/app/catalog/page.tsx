@@ -59,16 +59,57 @@ function mapApiVehicle(v: any): Vehicle {
   const vin = String(v.vin || "");
   const slug = String(vin || v.slug_vin || v.slug || lotNumber);
   const media = v.media || {};
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rawImgArr: unknown[] = (media as any).images ?? (media as any).thumbs ?? (media as any).image_urls ?? (media as any).photos ?? v.images ?? v.photos ?? (media as any).items ?? [];
-  const images: string[] = Array.isArray(rawImgArr)
-    ? rawImgArr.map((img: unknown) => {
-        if (typeof img === "string") return img;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const obj = img as any;
-        return String(obj?.full ?? obj?.url ?? obj?.large ?? obj?.thumb ?? obj?.src ?? "");
-      }).filter(Boolean)
-    : v.image ? [String(v.image)] : [];
+  let images: string[] = [];
+
+  // Prioritate: media.items[0].large (cu replace IAAI la rezoluție medie pentru performanță)
+  if (Array.isArray((media as any).items) && (media as any).items.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items = (media as any).items as any[];
+    const imageItems = items.filter((i) => i.type !== "video");
+    images = imageItems.map((i) => {
+      let url = String(i.large || i.thumb || "");
+      // Pentru IAAI pe carduri: rezoluție medie (nu full HD pentru performanță)
+      if (url.includes("vis.iaai.com/resizer")) {
+        url = url.replace(/width=\d+&height=\d+/, "width=845&height=633");
+      }
+      return url;
+    }).filter(Boolean);
+  }
+
+  // Fallback la media.thumbs
+  if (images.length === 0 && Array.isArray((media as any).thumbs)) {
+    images = ((media as any).thumbs as unknown[])
+      .filter((s): s is string => typeof s === "string")
+      .map((url) => {
+        if (url.includes("vis.iaai.com/resizer")) {
+          return url.replace(/width=\d+&height=\d+/, "width=845&height=633");
+        }
+        return url;
+      });
+  }
+
+  // Fallback la alte surse
+  if (images.length === 0) {
+    const rawImgArr: unknown[] = (media as any).images ?? (media as any).image_urls ?? (media as any).photos ?? v.images ?? v.photos ?? [];
+    images = Array.isArray(rawImgArr)
+      ? rawImgArr.map((img: unknown) => {
+          if (typeof img === "string") {
+            let url = img;
+            if (url.includes("vis.iaai.com/resizer")) {
+              url = url.replace(/width=\d+&height=\d+/, "width=845&height=633");
+            }
+            return url;
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const obj = img as any;
+          let url = String(obj?.full ?? obj?.url ?? obj?.large ?? obj?.thumb ?? obj?.src ?? "");
+          if (url.includes("vis.iaai.com/resizer")) {
+            url = url.replace(/width=\d+&height=\d+/, "width=845&height=633");
+          }
+          return url;
+        }).filter(Boolean)
+      : v.image ? [String(v.image)] : [];
+  }
   const pricing = v.pricing || {};
   const bid = Number(pricing.current_bid_usd ?? pricing.current_bid2_usd ?? pricing.buy_now_usd ?? 0);
   const buyNow = pricing.buy_now_usd ? Number(pricing.buy_now_usd) : undefined;
