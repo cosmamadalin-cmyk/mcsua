@@ -205,13 +205,30 @@ function tCondition(v: string): string {
 // ── Auction fee calculator ────────────────────────────────────────────────────
 function auctionFee(bid: number, platform: "copart" | "iaai"): number {
   const minFee = 600;
-  const pct = platform === "iaai" ? 0.10 : 0.125;
+  const pct = platform === "iaai" ? 0.10 : 0.12;
   return bid < 6000 ? minFee : Math.round(bid * pct);
 }
 
 // ── Transport info per state ───────────────────────────────────────────────────
 function getTransportInfo(state: string): { port: string; cost: number } {
-  const s = (state || "").toUpperCase().trim();
+  // Extrage codul statului din diferite formate:
+  // "Atlanta East (GA)" -> GA
+  // "Detroit MI" -> MI
+  // "GA" -> GA
+  let s = "";
+  const withParens = state.match(/\(([A-Z]{2})\)/);
+  if (withParens) {
+    s = withParens[1];
+  } else {
+    // Caută ultimele 2 caractere uppercase după un spațiu, sau întregul string dacă are 2 litere
+    const withSpace = state.match(/\s([A-Z]{2})$/);
+    if (withSpace) {
+      s = withSpace[1];
+    } else {
+      const trimmed = (state || "").toUpperCase().trim();
+      s = trimmed.length === 2 ? trimmed : "";
+    }
+  }
   const map: Record<string, { port: string; cost: number }> = {
     AL: { port: "Savannah",  cost: 1610 },
     AZ: { port: "Houston",   cost: 2400 },
