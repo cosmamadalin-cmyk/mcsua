@@ -297,7 +297,7 @@ function CostCalculator({
   vehicle: VehicleDetail;
 }) {
   const isSalvage = vehicle.titleType?.toLowerCase().includes("salvage");
-  const transportInfo = getTransportInfo(vehicle.state || "");
+  const transportInfo = getTransportInfo(vehicle.location || vehicle.state || "");
   const roTransportCost = getRoTransportCost(vehicle.bodyType);
 
   const isHybridOrElectric = ["electric", "hybrid", "plug-in"].some(
