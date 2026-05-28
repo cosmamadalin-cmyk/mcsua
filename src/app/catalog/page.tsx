@@ -150,14 +150,53 @@ function parseFiltersMeta(raw: any): FiltersMeta {
 }
 
 // ── Traduceri ──────────────────────────────────────────────────────────────────
-const FUEL_RO: Record<string, string> = { "Gasoline": "Benzină", "Gas": "Benzină", "Diesel": "Diesel", "Electric": "Electric", "Hybrid": "Hibrid", "Flex": "Flex" };
-const TRANS_RO: Record<string, string> = { "Automatic": "Automată", "Manual": "Manuală", "CVT": "CVT" };
+const FUEL_RO: Record<string, string> = {
+  "Gasoline": "Benzină", "Gas": "Benzină", "gas": "Benzină",
+  "Diesel": "Motorină", "diesel": "Motorină",
+  "Electric": "Electric", "electric": "Electric",
+  "Hybrid": "Hibrid", "hybrid": "Hibrid",
+  "Flex": "Flex Fuel", "Flexible": "Flex Fuel"
+};
+const TRANS_RO: Record<string, string> = {
+  "Automatic": "Automată", "automatic": "Automată",
+  "Manual": "Manuală", "manual": "Manuală",
+  "CVT": "CVT", "cvt": "CVT",
+  "Unknown": "Necunoscută"
+};
 function tFuel(v: string) { return FUEL_RO[v] || v; }
+function tTrans(v: string) { return TRANS_RO[v] || v; }
 function tCondition(v: string): string {
   const vl = v.toLowerCase();
   if (vl.includes("runs")) return "Pornește și merge";
   if (vl.includes("stationary") || vl.includes("static")) return "Staționar";
-  if (vl.includes("enhanced")) return "Enhanced";
+  if (vl.includes("enhanced")) return "Enhanced vehicles";
+  if (vl.includes("engine start")) return "Pornire motor";
+  return v;
+}
+function tDamage(v: string): string {
+  const vl = v.toLowerCase();
+  if (vl.includes("front end") || vl === "front") return "Față";
+  if (vl.includes("rear end") || vl === "rear") return "Spate";
+  if (vl.includes("side")) return "Lateral";
+  if (vl.includes("all over")) return "General";
+  if (vl.includes("mechanical")) return "Mecanică";
+  if (vl.includes("water") || vl.includes("flood")) return "Inundație";
+  if (vl.includes("fire")) return "Incendiu";
+  if (vl.includes("hail")) return "Grindină";
+  if (vl.includes("theft")) return "Recuperat după furt";
+  if (vl.includes("rollover")) return "Răsturnat";
+  if (vl.includes("vandal")) return "Vandalism";
+  if (vl.includes("normal wear")) return "Uzură normală";
+  if (vl.includes("minor dent") || vl.includes("minor scratch")) return "Zgârieturi/Lovituri minore";
+  return v;
+}
+function tTitleType(v: string): string {
+  const vl = v.toLowerCase();
+  if (vl.includes("salvage")) return "Titlu Salvage";
+  if (vl.includes("clean")) return "Titlu Curat";
+  if (vl.includes("certificate of title")) return "Certificat de Titlu";
+  if (vl.includes("non-repairable")) return "Nereparabil";
+  if (vl.includes("parts only")) return "Doar piese";
   return v;
 }
 
@@ -301,7 +340,7 @@ function FilterPanel({
           <ToggleGroup
             value={filters.lotStatus}
             onChange={set("lotStatus")}
-            options={[{ label: "Toate", value: "" }, { label: "Buy Now", value: "Buy Now" }, { label: "Timed", value: "Timed" }]}
+            options={[{ label: "Toate", value: "" }, { label: "Cumpără acum", value: "Buy Now" }, { label: "Licitație temporizată", value: "Timed" }]}
           />
         </div>
 
@@ -584,12 +623,12 @@ function VehicleCard({ v }: { v: Vehicle }) {
             </Link>
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${v.titleType?.toLowerCase().includes("clean") ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
               {v.titleType?.toLowerCase().includes("clean") ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-              {v.titleType}
+              {tTitleType(v.titleType)}
             </span>
           </div>
           {v.damage && (
             <p className="text-xs text-amber-600 font-medium mb-2 flex items-center gap-1 truncate">
-              <AlertTriangle className="h-3 w-3 flex-shrink-0" />{v.damage}
+              <AlertTriangle className="h-3 w-3 flex-shrink-0" />{tDamage(v.damage)}
             </p>
           )}
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-3">

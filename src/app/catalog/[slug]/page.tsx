@@ -176,29 +176,79 @@ function mapDetailVehicle(v: any): VehicleDetail {
 function tFuel(v: string): string {
   const m: Record<string, string> = {
     "Gas": "Benzină", "Gasoline": "Benzină", "gas": "Benzină",
-    "Diesel": "Diesel", "Electric": "Electric",
-    "Hybrid": "Hibrid", "Flexible": "Flex",
+    "Diesel": "Motorină", "diesel": "Motorină",
+    "Electric": "Electric", "electric": "Electric",
+    "Hybrid": "Hibrid", "hybrid": "Hibrid",
+    "Flexible": "Flex Fuel", "Flex": "Flex Fuel",
   };
   return m[v] || v;
 }
+
 function tTransmission(v: string): string {
   const m: Record<string, string> = {
     "Automatic": "Automată", "automatic": "Automată",
     "Manual": "Manuală", "manual": "Manuală",
+    "CVT": "CVT", "cvt": "CVT",
   };
   return m[v] || v;
 }
+
 function tDrive(v: string): string {
   const vl = v.toUpperCase();
-  if (vl.includes("FRONT")) return "Tracțiune față";
-  if (vl.includes("REAR")) return "Tracțiune spate";
-  if (vl.includes("ALL") || vl.includes("AWD") || vl.includes("4WD") || vl.includes("4X4")) return "4×4";
+  if (vl.includes("ALL") || vl === "AWD") return "Tracțiune integrală";
+  if (vl.includes("4WD") || vl.includes("4X4") || vl === "4WD") return "4×4";
+  if (vl.includes("FRONT") || vl === "FWD") return "Tracțiune față";
+  if (vl.includes("REAR") || vl === "RWD") return "Tracțiune spate";
   return v;
 }
+
 function tCondition(v: string): string {
   const vl = v.toLowerCase();
   if (vl.includes("runs")) return "Pornește și merge";
   if (vl.includes("stationary") || vl.includes("static")) return "Staționar";
+  if (vl.includes("enhanced")) return "Enhanced vehicles";
+  if (vl.includes("engine start")) return "Pornire motor";
+  return v;
+}
+
+function tBodyType(v: string): string {
+  const vl = v.toLowerCase();
+  if (vl === "sedan") return "Sedan";
+  if (vl.includes("suv") || vl.includes("crossover")) return "SUV/Crossover";
+  if (vl.includes("pickup") || vl.includes("truck")) return "Pick-up";
+  if (vl.includes("van") || vl.includes("minivan")) return "Van/Minivan";
+  if (vl === "coupe") return "Coupe";
+  if (vl === "hatchback") return "Hatchback";
+  if (vl.includes("convertible") || vl.includes("cabriolet")) return "Decapotabilă";
+  if (vl === "wagon") return "Break";
+  return v;
+}
+
+function tDamage(v: string): string {
+  const vl = v.toLowerCase();
+  if (vl.includes("front end") || vl === "front") return "Față";
+  if (vl.includes("rear end") || vl === "rear") return "Spate";
+  if (vl.includes("side")) return "Lateral";
+  if (vl.includes("all over")) return "General";
+  if (vl.includes("mechanical")) return "Mecanică";
+  if (vl.includes("water") || vl.includes("flood")) return "Inundație";
+  if (vl.includes("fire")) return "Incendiu";
+  if (vl.includes("hail")) return "Grindină";
+  if (vl.includes("theft")) return "Recuperat după furt";
+  if (vl.includes("rollover")) return "Răsturnat";
+  if (vl.includes("vandal")) return "Vandalism";
+  if (vl.includes("normal wear")) return "Uzură normală";
+  if (vl.includes("minor dent") || vl.includes("minor scratch")) return "Zgârieturi/Lovituri minore";
+  return v;
+}
+
+function tTitleType(v: string): string {
+  const vl = v.toLowerCase();
+  if (vl.includes("salvage")) return "Titlu Salvage";
+  if (vl.includes("clean")) return "Titlu Curat";
+  if (vl.includes("certificate of title")) return "Certificat de Titlu";
+  if (vl.includes("non-repairable")) return "Nereparabil";
+  if (vl.includes("parts only")) return "Doar piese";
   return v;
 }
 
@@ -970,7 +1020,7 @@ export default function VehicleDetailPage() {
                 <SpecRow label="Model" value={vehicle.model} />
                 {vehicle.trim && <SpecRow label="Versiune" value={vehicle.trim} />}
                 <SpecRow label="Culoare" value={vehicle.color} />
-                <SpecRow label="Caroserie" value={vehicle.bodyType} />
+                <SpecRow label="Caroserie" value={vehicle.bodyType ? tBodyType(vehicle.bodyType) : undefined} />
                 <SpecRow label="Motor" value={vehicle.engine} />
                 <SpecRow label="Cilindri" value={vehicle.cylinders} />
                 <SpecRow label="Cutie de viteze" value={tTransmission(vehicle.transmission)} />
@@ -978,9 +1028,9 @@ export default function VehicleDetailPage() {
                 <SpecRow label="Combustibil" value={tFuel(vehicle.fuelType)} />
                 <SpecRow label="Rulaj" value={`${vehicle.odometer.toLocaleString("ro-RO")} ${vehicle.odometerUnit}`} />
                 <SpecRow label="Stare funcționare" value={tCondition(vehicle.runCondition)} />
-                <SpecRow label="Tip titlu" value={vehicle.titleType} />
-                <SpecRow label="Daună primară" value={vehicle.damage} />
-                {vehicle.secondaryDamage && <SpecRow label="Daună secundară" value={vehicle.secondaryDamage} />}
+                <SpecRow label="Tip titlu" value={tTitleType(vehicle.titleType)} />
+                <SpecRow label="Daună primară" value={tDamage(vehicle.damage)} />
+                {vehicle.secondaryDamage && <SpecRow label="Daună secundară" value={tDamage(vehicle.secondaryDamage)} />}
                 <SpecRow label="Chei" value={vehicle.hasKey ? "Da" : "Nu"} />
                 <SpecRow label="Airbag-uri" value={vehicle.airbags} />
                 <SpecRow label="Vânzător" value={vehicle.seller} />
