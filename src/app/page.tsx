@@ -256,8 +256,8 @@ export default function Home() {
             <div className="text-center mb-6">
               <h2 className="text-2xl sm:text-3xl font-extrabold text-primary mb-1">Import Mașini SUA</h2>
               <div className="flex flex-wrap gap-6 justify-center mt-3 text-sm text-slate-500">
-                <span className="flex items-center gap-1.5"><Search className="h-4 w-4 text-accent" /><strong>Alegere</strong> — Peste 150.000 mașini</span>
-                <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-accent" /><strong>Verificare</strong> — Istoric Carfax inclus</span>
+                <span className="flex items-center gap-1.5"><Search className="h-4 w-4 text-accent" /><strong>Portofoliu</strong> — Orice model din peste 170.000 de mașini</span>
+                <span className="flex items-center gap-1.5"><CheckCircle2 className="h-4 w-4 text-accent" /><strong>Validare</strong> — Evaluarea completă a rentabilității și stării</span>
                 <span className="flex items-center gap-1.5"><Car className="h-4 w-4 text-accent" /><strong>Livrare</strong> — Direct la ușa ta</span>
               </div>
             </div>

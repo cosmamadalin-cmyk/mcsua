@@ -803,7 +803,7 @@ function CatalogContent() {
           <p className="text-lg text-slate-300 max-w-xl mx-auto mb-5">Verifică loturi disponibile pe Copart și IAAI. Intră pe orice mașină și vezi estimarea costului total până în România.</p>
           {!isLoading && total > 0 && (
             <div className="inline-flex items-center gap-2 bg-green-500/20 border border-green-400/30 rounded-xl px-4 py-2 text-sm text-green-200">
-              <CheckCircle2 className="h-4 w-4" /><span>{total.toLocaleString("ro-RO")} loturi active găsite</span>
+              <CheckCircle2 className="h-4 w-4" /><span>Mii de loturi active actualizate acum</span>
             </div>
           )}
         </div>
