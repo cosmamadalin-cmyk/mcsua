@@ -373,29 +373,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Calculator Banner */}
-      <section className="bg-gradient-to-r from-accent to-blue-700 py-6 sm:py-8">
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-4 text-white">
-              <div className="p-3 bg-white/20 rounded-xl hidden sm:block">
-                <Car className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="font-bold text-lg leading-tight">Calculator Cost Import Auto</p>
-                <p className="text-blue-100 text-sm">Estimează costul total — licitație, transport, vamă, TVA</p>
-              </div>
-            </div>
-            <Button asChild size="lg" className="bg-white text-accent hover:bg-white/90 font-bold shadow-lg whitespace-nowrap">
-              <Link href="/calculator">Calculează acum →</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Google Reviews Carousel */}
-      <GoogleReviewsCarousel />
-
       {/* Tipuri de mașini populare */}
       <section ref={featuredCarsReveal.ref} className={`py-24 bg-white transition-all duration-700 ${featuredCarsReveal.isVisible ? "animate-slide-up" : "opacity-0"}`}>
         <div className="container mx-auto px-6">
@@ -437,7 +414,7 @@ export default function Home() {
                     </h3>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs text-slate-400">Bid curent</p>
+                        <p className="text-xs text-slate-400">Preț curent</p>
                         <p className="text-xl font-bold text-accent">${vehicle.estimatedBid.toLocaleString()}</p>
                       </div>
                       <div className="text-xs text-slate-500">
@@ -457,6 +434,29 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Calculator Banner */}
+      <section className="bg-gradient-to-r from-accent to-blue-700 py-6 sm:py-8">
+        <div className="container mx-auto px-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-4 text-white">
+              <div className="p-3 bg-white/20 rounded-xl hidden sm:block">
+                <Car className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-bold text-lg leading-tight">Calculator Cost Import Auto</p>
+                <p className="text-blue-100 text-sm">Estimează costul total — licitație, transport, vamă, TVA</p>
+              </div>
+            </div>
+            <Button asChild size="lg" className="bg-white text-accent hover:bg-white/90 font-bold shadow-lg whitespace-nowrap">
+              <Link href="/calculator">Calculează acum →</Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {/* Google Reviews Carousel */}
+      <GoogleReviewsCarousel />
 
       {/* Ce face McSUA pentru tine */}
       <section ref={valuePropReveal.ref} className={`py-24 bg-gradient-to-b from-slate-50 to-white transition-all duration-700 ${valuePropReveal.isVisible ? "animate-slide-up" : "opacity-0"}`}>

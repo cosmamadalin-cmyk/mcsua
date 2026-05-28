@@ -522,7 +522,14 @@ function CostCalculator({
             checked={includeInsurance}
             onChange={setIncludeInsurance}
           />
-          <CostRow num={8} label="Taxă vamală" sublabel="(10%)" value={fmt(customsDuty)} />
+          <CostRow
+            num={8}
+            label="Taxă vamală"
+            sublabel="(10%)"
+            value={fmt(customsDuty)}
+            infoLink="/contact"
+            infoText="Confirmă cu noi"
+          />
           <CostRow
             num={9}
             label="TVA"
@@ -591,6 +598,8 @@ function CostRow({
   value,
   highlight,
   tooltip,
+  infoLink,
+  infoText,
 }: {
   num: number;
   label: string;
@@ -598,6 +607,8 @@ function CostRow({
   value: string;
   highlight?: boolean;
   tooltip?: string;
+  infoLink?: string;
+  infoText?: string;
 }) {
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -627,6 +638,12 @@ function CostRow({
             )}
           </div>
           {sublabel && <span className="block text-[10px] text-slate-400 mt-0.5">{sublabel}</span>}
+          {infoLink && infoText && (
+            <Link href={infoLink} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-accent transition-colors mt-1">
+              <Info className="h-3 w-3" />
+              <span className="underline">{infoText}</span>
+            </Link>
+          )}
         </div>
       </div>
       <span className={`text-xs font-semibold whitespace-nowrap ${highlight ? "text-primary" : "text-slate-700"}`}>
@@ -973,13 +990,13 @@ export default function VehicleDetailPage() {
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Bid curent</p>
+                  <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Preț curent</p>
                   <p className="text-4xl font-extrabold text-accent">
                     ${vehicle.estimatedBid.toLocaleString("ro-RO")}
                   </p>
                   {vehicle.buyNow && (
                     <p className="text-sm text-green-600 font-semibold mt-1">
-                      Buy Now: ${vehicle.buyNow.toLocaleString("ro-RO")}
+                      Preț cumpărare imediată: ${vehicle.buyNow.toLocaleString("ro-RO")}
                     </p>
                   )}
                 </div>

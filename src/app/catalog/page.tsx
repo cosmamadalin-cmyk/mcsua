@@ -665,9 +665,9 @@ function VehicleCard({ v }: { v: Vehicle }) {
           </div>
           <div className="flex items-center justify-between gap-2 mt-auto">
             <div>
-              <p className="text-xs text-slate-400 leading-none mb-0.5">Bid curent</p>
+              <p className="text-xs text-slate-400 leading-none mb-0.5">Preț curent</p>
               <p className="text-lg font-extrabold text-accent leading-none">${v.estimatedBid.toLocaleString("ro-RO")}</p>
-              {v.buyNow && <p className="text-xs text-green-600 font-semibold mt-0.5">Buy Now: ${v.buyNow.toLocaleString("ro-RO")}</p>}
+              {v.buyNow && <p className="text-xs text-green-600 font-semibold mt-0.5">Preț cumpărare imediată: ${v.buyNow.toLocaleString("ro-RO")}</p>}
             </div>
             <div className="flex items-center gap-2">
               <a href={v.auctionUrl} target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-accent transition-colors">
