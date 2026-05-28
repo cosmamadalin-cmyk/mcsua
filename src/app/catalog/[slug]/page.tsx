@@ -256,6 +256,92 @@ function tTitleType(v: string): string {
   return v;
 }
 
+// ── Auction Countdown Component ────────────────────────────────────────────────
+function AuctionCountdown({ auctionDate }: { auctionDate?: string }) {
+  const [timeLeft, setTimeLeft] = useState<{
+    days: number;
+    hours: number;
+    minutes: number;
+    seconds: number;
+    total: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!auctionDate) return;
+
+    const calculateTimeLeft = () => {
+      try {
+        const auctionTime = new Date(auctionDate).getTime();
+        const now = new Date().getTime();
+        const difference = auctionTime - now;
+
+        if (difference <= 0) {
+          setTimeLeft({ days: 0, hours: 0, minutes: 0, seconds: 0, total: 0 });
+          return;
+        }
+
+        const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+        setTimeLeft({ days, hours, minutes, seconds, total: difference });
+      } catch (error) {
+        console.error("Invalid auction date:", error);
+        setTimeLeft(null);
+      }
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(calculateTimeLeft, 1000);
+
+    return () => clearInterval(interval);
+  }, [auctionDate]);
+
+  if (!auctionDate || !timeLeft) return null;
+
+  // Licitație încheiată
+  if (timeLeft.total <= 0) {
+    return (
+      <div className="text-center">
+        <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Timp rămas</p>
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-500 rounded-lg text-sm font-semibold">
+          Licitație încheiată
+        </div>
+      </div>
+    );
+  }
+
+  // Determine badge color
+  const hoursTotal = timeLeft.days * 24 + timeLeft.hours;
+  let badgeColor = "bg-green-500/10 text-green-600 border-green-500/30"; // >24h
+  if (hoursTotal < 1) {
+    badgeColor = "bg-red-500/10 text-red-600 border-red-500/30"; // <1h
+  } else if (hoursTotal < 24) {
+    badgeColor = "bg-orange-500/10 text-orange-600 border-orange-500/30"; // <24h
+  }
+
+  // Format display
+  let displayText = "";
+  if (timeLeft.days > 0) {
+    displayText = `${timeLeft.days}z ${timeLeft.hours}h ${timeLeft.minutes}m`;
+  } else if (timeLeft.hours > 0) {
+    displayText = `${timeLeft.hours}h ${timeLeft.minutes}m ${String(timeLeft.seconds).padStart(2, "0")}s`;
+  } else {
+    displayText = `${timeLeft.minutes}m ${String(timeLeft.seconds).padStart(2, "0")}s`;
+  }
+
+  return (
+    <div className="text-center">
+      <p className="text-xs text-slate-400 font-medium uppercase tracking-wide mb-1">Timp rămas</p>
+      <div className={`inline-flex items-center gap-2 px-3 py-1.5 border rounded-lg text-sm font-bold ${badgeColor}`}>
+        <Zap className="h-4 w-4" />
+        {displayText}
+      </div>
+    </div>
+  );
+}
+
 // ── Auction fee calculator ────────────────────────────────────────────────────
 function auctionFee(bid: number, platform: "copart" | "iaai"): number {
   const minFee = 600;
@@ -1000,21 +1086,24 @@ export default function VehicleDetailPage() {
                     </p>
                   )}
                 </div>
-                {vehicle.auctionDate && (
-                  <div className="text-right">
-                    <p className="text-xs text-slate-400 mb-1 flex items-center gap-1 justify-end">
-                      <Calendar className="h-3 w-3" /> Data licitației
-                    </p>
-                    <p className="text-lg font-bold text-primary">
-                      {new Date(vehicle.auctionDate).toLocaleDateString("ro-RO", {
-                        weekday: "long",
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </p>
-                  </div>
-                )}
+                <div className="flex flex-col gap-3 items-end">
+                  <AuctionCountdown auctionDate={vehicle.auctionDate} />
+                  {vehicle.auctionDate && (
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400 mb-1 flex items-center gap-1 justify-end">
+                        <Calendar className="h-3 w-3" /> Data licitației
+                      </p>
+                      <p className="text-sm font-semibold text-slate-600">
+                        {new Date(vehicle.auctionDate).toLocaleDateString("ro-RO", {
+                          weekday: "long",
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
