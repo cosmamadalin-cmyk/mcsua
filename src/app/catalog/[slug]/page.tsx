@@ -226,6 +226,7 @@ function tBodyType(v: string): string {
 
 function tDamage(v: string): string {
   const vl = v.toLowerCase();
+  if (vl.includes("front") && vl.includes("rear")) return "Față și spate";
   if (vl.includes("front end") || vl === "front") return "Față";
   if (vl.includes("rear end") || vl === "rear") return "Spate";
   if (vl.includes("side")) return "Lateral";
@@ -244,11 +245,14 @@ function tDamage(v: string): string {
 
 function tTitleType(v: string): string {
   const vl = v.toLowerCase();
+  if (vl.includes("clear") && vl.includes("dealer")) return "Titlu Curat - Doar Dealer";
   if (vl.includes("salvage")) return "Titlu Salvage";
-  if (vl.includes("clean")) return "Titlu Curat";
+  if (vl.includes("clean") || vl.includes("clear")) return "Titlu Curat";
   if (vl.includes("certificate of title")) return "Certificat de Titlu";
   if (vl.includes("non-repairable")) return "Nereparabil";
   if (vl.includes("parts only")) return "Doar piese";
+  if (vl.includes("rebuilt")) return "Reconstruit";
+  if (vl.includes("junk")) return "Casare";
   return v;
 }
 
