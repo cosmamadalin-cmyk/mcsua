@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -744,9 +744,44 @@ function SkeletonCard() {
   );
 }
 
+// ── Restore filters from URL params ────────────────────────────────────────────
+function filtersFromParams(params: URLSearchParams): Filters {
+  return {
+    search: params.get("search") || "",
+    platform: params.get("platform") || "",
+    lotStatus: params.get("lotStatus") || "",
+    subStatus: params.get("subStatus") || "Open",
+    make: params.get("make") || "",
+    model: params.get("model") || "",
+    vehicleType: params.get("vehicleType") || "",
+    yearFrom: params.get("yearFrom") || "",
+    yearTo: params.get("yearTo") || "",
+    priceMin: params.get("priceMin") || "",
+    priceMax: params.get("priceMax") || "",
+    odoFrom: params.get("odoFrom") || "",
+    odoTo: params.get("odoTo") || "",
+    engineSizeFrom: params.get("engineSizeFrom") || "",
+    engineSizeTo: params.get("engineSizeTo") || "",
+    engineHpFrom: params.get("engineHpFrom") || "",
+    engineHpTo: params.get("engineHpTo") || "",
+    color: params.get("color") || "",
+    fuel: params.get("fuel") || "",
+    transmission: params.get("transmission") || "",
+    drive: params.get("drive") || "",
+    condition: params.get("condition") || "",
+    damage: params.get("damage") || "",
+    cylinders: params.get("cylinders") || "",
+    hasKey: params.get("hasKey") || "",
+    titleType: params.get("titleType") || "",
+  };
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 function CatalogContent() {
-  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [filters, setFilters] = useState<Filters>(() => filtersFromParams(searchParams));
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -758,7 +793,6 @@ function CatalogContent() {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  const searchParams = useSearchParams();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cursorsRef = useRef<Record<number, string>>({1: ""});
 
@@ -767,19 +801,6 @@ function CatalogContent() {
   // Incarc filtrele de la Apibara
   useEffect(() => {
     fetch("/api/vehicles/filters").then((r) => r.json()).then((data) => setFiltersMeta(parseFiltersMeta(data))).catch(() => {}).finally(() => setFiltersLoading(false));
-  }, []);
-
-  useEffect(() => {
-    const make = searchParams.get("make") || "";
-    const model = searchParams.get("model") || "";
-    const search = searchParams.get("search") || "";
-    const yearFrom = searchParams.get("year_from") || "";
-    const yearTo = searchParams.get("year_to") || "";
-    const platform = searchParams.get("auction_type") || "";
-    if (make || model || search || yearFrom || yearTo || platform) {
-      setFilters(prev => ({ ...prev, make, model, search, yearFrom, yearTo, platform }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchVehicles = useCallback(async () => {
@@ -832,6 +853,23 @@ function CatalogContent() {
   }, [filters, page]);
 
   useEffect(() => { fetchVehicles(); }, [fetchVehicles, refreshTrigger]);
+
+  // Sync filters to URL (persist on navigation)
+  useEffect(() => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value && value !== "" && !(key === "subStatus" && value === "Open")) {
+        params.set(key, value);
+      }
+    });
+    // subStatus Open is default, don't write it
+    if (filters.subStatus && filters.subStatus !== "Open") {
+      params.set("subStatus", filters.subStatus);
+    }
+    const queryString = params.toString();
+    const newUrl = queryString ? `/catalog?${queryString}` : "/catalog";
+    router.replace(newUrl, { scroll: false });
+  }, [filters, router]);
 
   const handleSetFilters = (f: Filters) => { cursorsRef.current = {1: ""}; setFilters(f); setPage(1); };
   const resetFilters = () => { cursorsRef.current = {1: ""}; setFilters(DEFAULT_FILTERS); setPage(1); };
