@@ -953,15 +953,30 @@ function CatalogContent() {
       {mobileFiltersOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileFiltersOpen(false)} />
-          <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[90vw] bg-slate-50 overflow-y-auto shadow-2xl">
+          <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[90vw] bg-slate-50 flex flex-col shadow-2xl">
             <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <span className="font-bold text-primary">Filtre</span>
               <button type="button" onClick={() => setMobileFiltersOpen(false)} className="p-1 hover:bg-slate-100 rounded-lg transition-colors">
                 <X className="h-5 w-5 text-slate-500" />
               </button>
             </div>
-            <div className="p-4">
+            <div className="p-4 flex-1 overflow-y-auto">
               <FilterPanel filters={filters} setFilters={(f) => { handleSetFilters(f); }} filtersMeta={filtersMeta} filtersLoading={filtersLoading} onReset={resetFilters} total={total} isLoading={isLoading} />
+            </div>
+            <div className="shrink-0 border-t border-slate-200 bg-white p-4">
+              <button
+                type="button"
+                onClick={() => {
+                  if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                  }
+                  setMobileFiltersOpen(false);
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-semibold py-4 rounded-xl flex items-center justify-center gap-2 transition-colors text-base"
+              >
+                <Search className="w-5 h-5" />
+                Caută
+              </button>
             </div>
           </div>
         </div>
