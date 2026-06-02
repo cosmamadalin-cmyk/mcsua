@@ -309,12 +309,12 @@ function RangeInputs({ label, fromVal, toVal, onFromChange, onToChange, fromPlac
         <input
           type={type} value={fromVal} onChange={(e) => onFromChange(e.target.value)}
           placeholder={fromPlaceholder || "De la"}
-          className="flex-1 h-8 px-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-accent"
+          className="flex-1 h-8 px-2 text-base border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-accent"
         />
         <input
           type={type} value={toVal} onChange={(e) => onToChange(e.target.value)}
           placeholder={toPlaceholder || "Până la"}
-          className="flex-1 h-8 px-2 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-accent"
+          className="flex-1 h-8 px-2 text-base border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-accent"
         />
       </div>
     </div>
@@ -369,7 +369,7 @@ function FilterPanel({
               type="text" value={filters.search}
               onChange={(e) => set("search")(e.target.value)}
               placeholder="VIN, lot, model..."
-              className="w-full h-8 pl-8 pr-3 text-xs border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-accent"
+              className="w-full h-8 pl-8 pr-3 text-base border border-slate-200 rounded-lg bg-white focus:outline-none focus:border-accent"
             />
             {filters.search && (
               <button type="button" onClick={() => set("search")("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
@@ -953,7 +953,7 @@ function CatalogContent() {
       {mobileFiltersOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileFiltersOpen(false)} />
-          <div className="absolute left-0 top-0 bottom-0 w-80 max-w-[90vw] bg-slate-50 flex flex-col shadow-2xl">
+          <div className="absolute left-0 top-0 h-[100dvh] w-80 max-w-[90vw] bg-slate-50 flex flex-col shadow-2xl">
             <div className="sticky top-0 bg-white z-10 flex items-center justify-between px-4 py-3 border-b border-slate-100">
               <span className="font-bold text-primary">Filtre</span>
               <button type="button" onClick={() => setMobileFiltersOpen(false)} className="p-1 hover:bg-slate-100 rounded-lg transition-colors">
