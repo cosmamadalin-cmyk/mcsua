@@ -1176,15 +1176,33 @@ export default function VehicleDetailPage() {
             </p>
           </div>
 
-          <a
-            href={vehicle.auctionUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:border-accent hover:text-accent transition-all font-medium"
-          >
-            <ExternalLink className="h-4 w-4" />
-            Vezi pe {vehicle.platform === "copart" ? "Copart" : "IAAI"}
-          </a>
+          {vehicle.platform === "copart" ? (
+            <a
+              href={vehicle.auctionUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:border-accent hover:text-accent transition-all font-medium"
+            >
+              <ExternalLink className="h-4 w-4" />
+              Vezi pe Copart
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(vehicle.lotNumber).catch(() => {});
+                window.open(
+                  `https://www.iaai.com/Search?searchText=${encodeURIComponent(vehicle.lotNumber)}&vehicleType=1`,
+                  "_blank"
+                );
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-600 hover:border-accent hover:text-accent transition-all font-medium"
+              title={`Caută lot ${vehicle.lotNumber} pe IAAI`}
+            >
+              <ExternalLink className="h-4 w-4" />
+              Caută pe IAAI
+            </button>
+          )}
         </div>
 
         {/* ── Gallery ── */}
