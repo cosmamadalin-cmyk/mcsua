@@ -473,7 +473,7 @@ function getTransportInfo(state: string): { port: string; cost: number } {
     GA: { port: "Savannah",  cost: 1565 },
     ID: { port: "Houston",   cost: 2570 },
     IL: { port: "New York",  cost: 1765 },
-    IN: { port: "New York",  cost: 1755 },
+    IN: { port: "New York",  cost: 1675 },
     IA: { port: "Savannah",  cost: 1825 },
     KS: { port: "Houston",   cost: 1765 },
     KY: { port: "Savannah",  cost: 1610 },
