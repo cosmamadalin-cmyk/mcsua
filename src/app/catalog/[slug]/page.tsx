@@ -1192,7 +1192,7 @@ export default function VehicleDetailPage() {
               onClick={() => {
                 navigator.clipboard.writeText(vehicle.lotNumber).catch(() => {});
                 window.open(
-                  `https://www.iaai.com/Search?searchText=${encodeURIComponent(vehicle.lotNumber)}&vehicleType=1`,
+                  "https://www.iaai.com",
                   "_blank"
                 );
               }}
@@ -1200,7 +1200,7 @@ export default function VehicleDetailPage() {
               title={`Caută lot ${vehicle.lotNumber} pe IAAI`}
             >
               <ExternalLink className="h-4 w-4" />
-              Caută pe IAAI
+              IAAI (LOT #{vehicle.lotNumber})
             </button>
           )}
         </div>
