@@ -650,7 +650,7 @@ export default function CalculatorPage() {
               <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90 h-14 px-8 font-semibold">
                 <Link href="/contact">Contactează-ne acum</Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-white/40 text-white hover:bg-white/10 h-14 px-8 font-semibold">
+              <Button asChild size="lg" variant="outline" className="border-white bg-white/10 text-white hover:bg-white/20 h-14 px-8 font-semibold">
                 <Link href="/cum-functioneaza">Cum funcționează?</Link>
               </Button>
             </div>
