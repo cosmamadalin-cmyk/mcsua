@@ -544,7 +544,8 @@ function CostCalculator({
   const portTax = includePortTax ? 400 : 0;
   const usaTransport = transportInfo.cost;
   const salvageTitleCost = includeSalvageTitle ? 550 : 0;
-  const totalUSA = bidPrice + buyerFee + portTax + usaTransport + salvageTitleCost;
+  const exportDocs = 300;
+  const totalUSA = bidPrice + buyerFee + portTax + usaTransport + salvageTitleCost + exportDocs;
 
   // Valoare declarație vamală = Total SUA (USD), convertit în EUR
   const cifEUR = totalUSA * eurUsdRate;
@@ -666,9 +667,15 @@ function CostCalculator({
             checked={includeSalvageTitle}
             onChange={setIncludeSalvageTitle}
           />
+          <CostRow
+            num={6}
+            label="Documentație export"
+            sublabel="Titlu de export, procuri, acte vamale SUA"
+            value={fmtUSD(exportDocs)}
+          />
         </div>
         <div className="flex justify-between items-center mt-3 py-2.5 border-t border-slate-100">
-          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">1 – 5  TOTAL SUA</span>
+          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">1 – 6  TOTAL SUA</span>
           <span className="text-sm font-extrabold text-primary">{fmtUSD(totalUSA)}</span>
         </div>
       </div>
@@ -679,17 +686,17 @@ function CostCalculator({
           Costuri UE
         </h3>
         <div className="space-y-2">
-          {/* Item 6: Valoare declaratie vamala */}
+          {/* Item 7: Valoare declaratie vamala */}
           <div className="mb-1">
             <span className="text-[10px] text-slate-400 font-medium block mb-1">
-              6. Valoare declarație vamală (USD)
+              7. Valoare declarație vamală (USD)
             </span>
             <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-primary">
               $ {Math.round(totalUSA).toLocaleString("ro-RO")}
             </div>
           </div>
           <CheckRow
-            num={7}
+            num={8}
             label="Asigurare transport maritim"
             sublabel="(1% din valoarea bunului)"
             value={fmt(insurance)}
@@ -697,7 +704,7 @@ function CostCalculator({
             onChange={setIncludeInsurance}
           />
           <CostRow
-            num={8}
+            num={9}
             label="Taxă vamală"
             sublabel="(10%)"
             value={fmt(customsDuty)}
@@ -705,21 +712,21 @@ function CostCalculator({
             infoText="Confirmă cu noi"
           />
           <CostRow
-            num={9}
+            num={10}
             label="TVA"
             sublabel="(21%)"
             value={fmt(tva)}
             tooltip="Dacă achiziția se face pe firmă plătitoare de TVA, taxa nu se mai plătește la import."
           />
-          <CostRow num={10} label="Comision intermediere MC SUA" value={fmt(commissionMCSUA)} />
+          <CostRow num={11} label="Comision intermediere MC SUA" value={fmt(commissionMCSUA)} />
           <CostRow
-            num={11}
+            num={12}
             label="Manipulare în port"
             value={fmt(portHandling)}
             tooltip="Valoare orientativă. Costul final poate varia în funcție de port și dimensiunile vehiculului."
           />
           <CheckRow
-            num={12}
+            num={13}
             label="Rotterdam → România"
             sublabel={
               vehicle.bodyType?.toLowerCase().includes("pickup") || vehicle.bodyType?.toLowerCase().includes("truck")
@@ -734,7 +741,7 @@ function CostCalculator({
           />
         </div>
         <div className="flex justify-between items-center mt-3 py-2.5 border-t border-slate-100">
-          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">6 – 12  TOTAL IMPORT</span>
+          <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">7 – 13  TOTAL IMPORT</span>
           <span className="text-sm font-extrabold text-primary">{fmt(totalEU)}</span>
         </div>
       </div>
