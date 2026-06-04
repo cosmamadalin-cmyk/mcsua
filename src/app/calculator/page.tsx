@@ -1,238 +1,309 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import {
   Calculator,
-  DollarSign,
-  Ship,
-  FileText,
-  Car,
-  ArrowRight,
+  Phone,
   Info,
+  Settings,
   ChevronDown,
-  ChevronUp,
-  TrendingDown,
 } from "lucide-react";
 
-// ── Copart buyer fees (broker / international rates) ──────────────────────────
-const COPART_TIERS: Array<{ max: number; fee: number; pct?: number }> = [
-  { max: 99.99, fee: 25 },
-  { max: 199.99, fee: 40 },
-  { max: 299.99, fee: 50 },
-  { max: 349.99, fee: 60 },
-  { max: 499.99, fee: 65 },
-  { max: 599.99, fee: 85 },
-  { max: 699.99, fee: 100 },
-  { max: 799.99, fee: 110 },
-  { max: 899.99, fee: 125 },
-  { max: 999.99, fee: 135 },
-  { max: 1199.99, fee: 155 },
-  { max: 1299.99, fee: 165 },
-  { max: 1499.99, fee: 185 },
-  { max: 1999.99, fee: 225 },
-  { max: 2999.99, fee: 275 },
-  { max: 3999.99, fee: 325 },
-  { max: 4999.99, fee: 400 },
-  { max: 5999.99, fee: 475 },
-  { max: 6999.99, fee: 550 },
-  { max: 7999.99, fee: 625 },
-  { max: 9999.99, fee: 700 },
-  { max: 11999.99, fee: 800 },
-  { max: Infinity, fee: 0, pct: 0.07 },
+// ── Transport cost map per state ───────────────────────────────────────────────
+const STATE_TRANSPORT_PAGE: Record<string, { port: string; cost: number }> = {
+  AL: { port: "Savannah", cost: 1610 },
+  AZ: { port: "Houston", cost: 2400 },
+  AR: { port: "Houston", cost: 1730 },
+  CA: { port: "Long Beach", cost: 2400 },
+  CO: { port: "Houston", cost: 2400 },
+  CT: { port: "New York", cost: 1540 },
+  DE: { port: "New York", cost: 1570 },
+  FL: { port: "Florida", cost: 1580 },
+  GA: { port: "Savannah", cost: 1565 },
+  ID: { port: "Houston", cost: 2570 },
+  IL: { port: "New York", cost: 1765 },
+  IN: { port: "New York", cost: 1675 },
+  IA: { port: "Savannah", cost: 1825 },
+  KS: { port: "Houston", cost: 1765 },
+  KY: { port: "Savannah", cost: 1610 },
+  LA: { port: "Houston", cost: 1650 },
+  ME: { port: "New York", cost: 1675 },
+  MD: { port: "New York", cost: 1575 },
+  MA: { port: "New York", cost: 1590 },
+  MI: { port: "New York", cost: 1630 },
+  MN: { port: "New York", cost: 1840 },
+  MS: { port: "Houston", cost: 1580 },
+  MO: { port: "Houston", cost: 1695 },
+  MT: { port: "Houston", cost: 2565 },
+  NE: { port: "Houston", cost: 1875 },
+  NV: { port: "Houston", cost: 2400 },
+  NH: { port: "New York", cost: 1675 },
+  NJ: { port: "New York", cost: 1570 },
+  NM: { port: "Houston", cost: 1765 },
+  NY: { port: "New York", cost: 1500 },
+  NC: { port: "Savannah", cost: 1560 },
+  ND: { port: "New York", cost: 1910 },
+  OH: { port: "New York", cost: 1690 },
+  OK: { port: "Houston", cost: 1630 },
+  OR: { port: "Houston", cost: 2640 },
+  PA: { port: "New York", cost: 1650 },
+  RI: { port: "New York", cost: 1590 },
+  SC: { port: "Savannah", cost: 1645 },
+  SD: { port: "New York", cost: 1900 },
+  TN: { port: "Savannah", cost: 1650 },
+  TX: { port: "Houston", cost: 1500 },
+  UT: { port: "Houston", cost: 2470 },
+  VT: { port: "New York", cost: 1620 },
+  VA: { port: "New York", cost: 1545 },
+  WA: { port: "New York", cost: 1565 },
+  WV: { port: "New York", cost: 1595 },
+  WI: { port: "New York", cost: 1680 },
+  WY: { port: "Houston", cost: 2175 },
+  DC: { port: "New York", cost: 1565 },
+};
+
+// State names in Romanian
+const US_STATES: { code: string; name: string }[] = [
+  { code: "", name: "Selectează statul" },
+  { code: "AL", name: "Alabama" },
+  { code: "AZ", name: "Arizona" },
+  { code: "AR", name: "Arkansas" },
+  { code: "CA", name: "California" },
+  { code: "NC", name: "Carolina de Nord" },
+  { code: "SC", name: "Carolina de Sud" },
+  { code: "CO", name: "Colorado" },
+  { code: "CT", name: "Connecticut" },
+  { code: "ND", name: "Dakota de Nord" },
+  { code: "SD", name: "Dakota de Sud" },
+  { code: "DE", name: "Delaware" },
+  { code: "FL", name: "Florida" },
+  { code: "GA", name: "Georgia" },
+  { code: "ID", name: "Idaho" },
+  { code: "IL", name: "Illinois" },
+  { code: "IN", name: "Indiana" },
+  { code: "IA", name: "Iowa" },
+  { code: "KS", name: "Kansas" },
+  { code: "KY", name: "Kentucky" },
+  { code: "LA", name: "Louisiana" },
+  { code: "ME", name: "Maine" },
+  { code: "MD", name: "Maryland" },
+  { code: "MA", name: "Massachusetts" },
+  { code: "MI", name: "Michigan" },
+  { code: "MN", name: "Minnesota" },
+  { code: "MS", name: "Mississippi" },
+  { code: "MO", name: "Missouri" },
+  { code: "MT", name: "Montana" },
+  { code: "NE", name: "Nebraska" },
+  { code: "NV", name: "Nevada" },
+  { code: "NH", name: "New Hampshire" },
+  { code: "NJ", name: "New Jersey" },
+  { code: "NM", name: "New Mexico" },
+  { code: "NY", name: "New York" },
+  { code: "OH", name: "Ohio" },
+  { code: "OK", name: "Oklahoma" },
+  { code: "OR", name: "Oregon" },
+  { code: "PA", name: "Pennsylvania" },
+  { code: "RI", name: "Rhode Island" },
+  { code: "TN", name: "Tennessee" },
+  { code: "TX", name: "Texas" },
+  { code: "UT", name: "Utah" },
+  { code: "VT", name: "Vermont" },
+  { code: "VA", name: "Virginia" },
+  { code: "WV", name: "Virginia de Vest" },
+  { code: "DC", name: "Washington DC" },
+  { code: "WI", name: "Wisconsin" },
+  { code: "WY", name: "Wyoming" },
 ];
 
-// ── IAAI buyer fees ────────────────────────────────────────────────────────────
-const IAAI_TIERS: Array<{ max: number; fee: number; pct?: number }> = [
-  { max: 99.99, fee: 25 },
-  { max: 199.99, fee: 50 },
-  { max: 299.99, fee: 75 },
-  { max: 399.99, fee: 100 },
-  { max: 499.99, fee: 125 },
-  { max: 599.99, fee: 150 },
-  { max: 699.99, fee: 175 },
-  { max: 799.99, fee: 200 },
-  { max: 899.99, fee: 225 },
-  { max: 999.99, fee: 250 },
-  { max: 1499.99, fee: 300 },
-  { max: 1999.99, fee: 350 },
-  { max: 2999.99, fee: 400 },
-  { max: 4999.99, fee: 500 },
-  { max: 7999.99, fee: 600 },
-  { max: 9999.99, fee: 700 },
-  { max: Infinity, fee: 0, pct: 0.065 },
-];
-
-function getBuyerFee(price: number, platform: "copart" | "iaai"): number {
-  if (!price || price <= 0) return 0;
-  const tiers = platform === "copart" ? COPART_TIERS : IAAI_TIERS;
-  for (const tier of tiers) {
-    if (price <= tier.max) {
-      return tier.pct ? Math.round(price * tier.pct) : tier.fee;
-    }
-  }
-  return 0;
+// ── Auction fee calculator ────────────────────────────────────────────────────
+function auctionFee(bid: number, platform: "copart" | "iaai"): number {
+  const minFee = 600;
+  const pct = platform === "iaai" ? 0.10 : 0.12;
+  return bid < 6000 ? minFee : Math.round(bid * pct);
 }
 
-function fmt(n: number, currency = "EUR"): string {
-  return new Intl.NumberFormat("ro-RO", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
-function fmtUSD(n: number): string {
-  return new Intl.NumberFormat("ro-RO", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0,
-  }).format(n);
-}
-
-// ── Numeric input helper ───────────────────────────────────────────────────────
-function NumInput({
+// ── Cost Row Component ────────────────────────────────────────────────────────
+function CostRow({
+  num,
   label,
+  sublabel,
   value,
-  onChange,
-  prefix,
-  suffix,
-  hint,
+  highlight,
+  tooltip,
+  infoLink,
+  infoText,
 }: {
+  num: number;
   label: string;
+  sublabel?: string;
   value: string;
-  onChange: (v: string) => void;
-  prefix?: string;
-  suffix?: string;
-  hint?: string;
+  highlight?: boolean;
+  tooltip?: string;
+  infoLink?: string;
+  infoText?: string;
 }) {
-  return (
-    <div className="space-y-1.5">
-      <label className="text-sm font-semibold text-slate-700">{label}</label>
-      <div className="relative flex items-center">
-        {prefix && (
-          <span className="absolute left-3 text-sm font-medium text-slate-500 select-none">
-            {prefix}
-          </span>
-        )}
-        <Input
-          type="number"
-          min={0}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`h-11 ${prefix ? "pl-8" : ""} ${suffix ? "pr-14" : ""} border-slate-200 focus:border-accent focus:ring-accent/20`}
-        />
-        {suffix && (
-          <span className="absolute right-3 text-sm font-medium text-slate-500 select-none">
-            {suffix}
-          </span>
-        )}
-      </div>
-      {hint && <p className="text-xs text-slate-400">{hint}</p>}
-    </div>
-  );
-}
+  const [showTooltip, setShowTooltip] = useState(false);
 
-// ── Row in breakdown table ─────────────────────────────────────────────────────
-function Row({
-  label,
-  value,
-  sub,
-  accent,
-  total,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  accent?: boolean;
-  total?: boolean;
-}) {
-  if (total) {
-    return (
-      <div className="flex items-center justify-between pt-4 mt-2 border-t-2 border-accent/30">
-        <span className="text-lg font-bold text-primary">{label}</span>
-        <span className="text-2xl font-extrabold text-accent">{value}</span>
-      </div>
-    );
-  }
   return (
-    <div className={`flex items-start justify-between py-2.5 border-b border-slate-100 ${accent ? "bg-slate-50/60 -mx-2 px-2 rounded" : ""}`}>
-      <div>
-        <span className={`text-sm ${accent ? "font-semibold text-slate-800" : "text-slate-600"}`}>
-          {label}
-        </span>
-        {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    <div className="flex justify-between items-start gap-2">
+      <div className="flex items-start gap-2 flex-1">
+        <span className="text-[10px] text-slate-400 font-medium w-4 flex-shrink-0 mt-0.5">{num}.</span>
+        <div className="flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className={`text-xs ${highlight ? "font-bold text-primary" : "text-slate-600"}`}>{label}</span>
+            {tooltip && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onMouseEnter={() => setShowTooltip(true)}
+                  onMouseLeave={() => setShowTooltip(false)}
+                  className="text-slate-400 hover:text-accent transition-colors"
+                >
+                  <Info className="h-3 w-3" />
+                </button>
+                {showTooltip && (
+                  <div className="absolute left-0 top-full mt-1 w-56 bg-slate-800 text-white text-xs p-2 rounded-lg shadow-lg z-50">
+                    {tooltip}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          {sublabel && <span className="block text-[10px] text-slate-400 mt-0.5">{sublabel}</span>}
+          {infoLink && infoText && (
+            <Link href={infoLink} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-accent transition-colors mt-1">
+              <Info className="h-3 w-3" />
+              <span className="underline">{infoText}</span>
+            </Link>
+          )}
+        </div>
       </div>
-      <span className={`text-sm font-semibold ml-4 whitespace-nowrap ${accent ? "text-accent" : "text-slate-800"}`}>
+      <span className={`text-xs font-semibold whitespace-nowrap ${highlight ? "text-primary" : "text-slate-700"}`}>
         {value}
       </span>
     </div>
   );
 }
 
+// ── Check Row Component ───────────────────────────────────────────────────────
+function CheckRow({
+  num,
+  label,
+  sublabel,
+  value,
+  checked,
+  onChange,
+}: {
+  num: number;
+  label: string;
+  sublabel?: string;
+  value: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex justify-between items-start gap-2">
+      <label className="flex items-start gap-2 cursor-pointer group flex-1">
+        <span className="text-[10px] text-slate-400 font-medium w-4 flex-shrink-0 mt-0.5">{num}.</span>
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="w-3.5 h-3.5 mt-0.5 accent-accent rounded flex-shrink-0"
+        />
+        <div>
+          <span className="text-xs text-slate-600 group-hover:text-accent transition-colors">{label}</span>
+          {sublabel && <span className="block text-[10px] text-slate-400">{sublabel}</span>}
+        </div>
+      </label>
+      <span className={`text-xs font-semibold whitespace-nowrap ${checked ? "text-slate-700" : "text-slate-300 line-through"}`}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+// ── Advanced Input Component ──────────────────────────────────────────────────
+function AdvancedInput({
+  label,
+  value,
+  onChange,
+  step = 1,
+  min,
+  max,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+  min?: number;
+  max?: number;
+}) {
+  return (
+    <div>
+      <label className="text-xs text-slate-500 block mb-1">{label}</label>
+      <input
+        type="number"
+        value={value}
+        step={step}
+        min={min}
+        max={max}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full pl-3 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent"
+      />
+    </div>
+  );
+}
+
 export default function CalculatorPage() {
-  // ── Inputs ──────────────────────────────────────────────────────────────────
+  // ── Form state ──────────────────────────────────────────────────────────────
   const [platform, setPlatform] = useState<"copart" | "iaai">("copart");
-  const [auctionPrice, setAuctionPrice] = useState("5000");
-  const [eurUsd, setEurUsd] = useState("0.92");
-  const [usTransport, setUsTransport] = useState("350");
-  const [oceanFreight, setOceanFreight] = useState("1200");
-  const [portHandling, setPortHandling] = useState("400");
-  const [roTransport, setRoTransport] = useState("600");
-  const [rarFee, setRarFee] = useState("350");
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [bidPrice, setBidPrice] = useState(5000);
+  const [selectedState, setSelectedState] = useState("");
+  const [eurUsdRate, setEurUsdRate] = useState(0.92);
 
-  // ── Calculation ─────────────────────────────────────────────────────────────
-  const calc = useMemo(() => {
-    const price = parseFloat(auctionPrice) || 0;
-    const rate = parseFloat(eurUsd) || 0.92;
-    const usT = parseFloat(usTransport) || 0;
-    const ocean = parseFloat(oceanFreight) || 0;
-    const portH = parseFloat(portHandling) || 0;
-    const roT = parseFloat(roTransport) || 0;
-    const rar = parseFloat(rarFee) || 0;
+  // ── Checkbox state ──────────────────────────────────────────────────────────
+  const [includePortTax, setIncludePortTax] = useState(false);
+  const [includeSalvageTitle, setIncludeSalvageTitle] = useState(false);
+  const [includeInsurance, setIncludeInsurance] = useState(false);
+  const [includeRoTransport, setIncludeRoTransport] = useState(true);
+  const [vehicleType, setVehicleType] = useState<"sedan" | "suv" | "pickup">("sedan");
 
-    // USD costs
-    const buyerFee = getBuyerFee(price, platform);
-    const totalUSD = price + buyerFee + usT + ocean;
+  // ── Transport info from selected state ──────────────────────────────────────
+  const transportInfo = selectedState ? STATE_TRANSPORT_PAGE[selectedState] : null;
 
-    // Convert to EUR
-    const totalEUR = totalUSD * rate;
+  // ── COSTURI SUA ──
+  const buyerFee = auctionFee(bidPrice, platform);
+  const portTax = includePortTax ? 400 : 0;
+  const usaTransport = transportInfo?.cost || 0;
+  const salvageTitleCost = includeSalvageTitle ? 550 : 0;
+  const exportDocs = 300;
+  const totalUSA = bidPrice + buyerFee + portTax + usaTransport + salvageTitleCost + exportDocs;
 
-    // CIF = valoarea vamală (preț + taxe + transport + freight, în EUR)
-    const cif = totalEUR;
+  // Valoare declarație vamală = Total SUA (USD), convertit în EUR
+  const cifEUR = totalUSA * eurUsdRate;
 
-    // Taxă vamală UE: 6.5% din CIF
-    const customsDuty = cif * 0.065;
+  // ── COSTURI UE ──
+  const insurance = includeInsurance ? cifEUR * 0.01 : 0;
+  const customsDuty = cifEUR * 0.10;
+  const tva = (cifEUR + customsDuty) * 0.21;
+  const commissionMCSUA = 1000;
+  const portHandling = 500;
 
-    // TVA 19% din (CIF + taxă vamală)
-    const vat = (cif + customsDuty) * 0.19;
+  // Romania transport cost by vehicle type
+  const roTransportCost = vehicleType === "pickup" ? 1100 : vehicleType === "suv" ? 900 : 850;
+  const roTransport = includeRoTransport ? roTransportCost : 0;
 
-    // Total după vamă + TVA + port + transport RO + RAR
-    const total = cif + customsDuty + vat + portH + roT + rar;
+  const totalEU = insurance + customsDuty + tva + commissionMCSUA + portHandling + roTransport;
 
-    return {
-      price,
-      buyerFee,
-      usT,
-      ocean,
-      totalUSD,
-      rate,
-      totalEUR,
-      cif,
-      customsDuty,
-      vat,
-      portH,
-      roT,
-      rar,
-      total,
-    };
-  }, [auctionPrice, platform, eurUsd, usTransport, oceanFreight, portHandling, roTransport, rarFee]);
+  // TOTAL GENERAL = Total SUA în EUR + Total UE
+  const totalGeneral = cifEUR + totalEU;
 
-  const hasPrice = calc.price > 0;
+  const fmt = (n: number, currency = "€") =>
+    `${currency}${Math.round(n).toLocaleString("ro-RO")}`;
+  const fmtUSD = (n: number) => fmt(n, "$");
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -258,281 +329,310 @@ export default function CalculatorPage() {
       <section className="container mx-auto px-4 sm:px-6 py-12">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
 
-          {/* ── LEFT: Inputs ─────────────────────────────────────────────── */}
+          {/* ══════ LEFT: Form ══════ */}
           <div className="space-y-6">
-            <Card className="border-0 shadow-xl">
-              <CardContent className="pt-6 pb-8 px-6 space-y-6">
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden p-6">
+              <h2 className="font-bold text-lg text-primary mb-6 flex items-center gap-2">
+                <Calculator className="h-5 w-5 text-accent" />
+                Parametri calcul
+              </h2>
 
-                {/* Platform toggle */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Platforma de licitație</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {(["copart", "iaai"] as const).map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setPlatform(p)}
-                        className={`py-3 px-4 rounded-xl border-2 font-semibold text-sm transition-all duration-200 ${
-                          platform === p
-                            ? "border-accent bg-accent text-white shadow-lg shadow-accent/25"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-accent/50"
-                        }`}
-                      >
-                        {p === "copart" ? "🏷 Copart" : "🏷 IAAI"}
-                      </button>
-                    ))}
-                  </div>
+              {/* 1. Platform toggle */}
+              <div className="mb-6">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-2">
+                  Platformă
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  {(["copart", "iaai"] as const).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPlatform(p)}
+                      className={`py-3 px-4 rounded-xl border-2 font-semibold text-sm transition-all duration-200 ${
+                        platform === p
+                          ? p === "copart"
+                            ? "border-blue-600 bg-blue-600 text-white shadow-lg shadow-blue-600/25"
+                            : "border-red-600 bg-red-600 text-white shadow-lg shadow-red-600/25"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                      }`}
+                    >
+                      {p === "copart" ? "Copart" : "IAAI"}
+                    </button>
+                  ))}
                 </div>
+                <p className="text-[10px] text-slate-400 mt-2">
+                  {platform === "copart" ? "Copart: 12% (min. $600)" : "IAAI: 10% (min. $600)"}
+                </p>
+              </div>
 
-                {/* Auction price */}
-                <NumInput
-                  label="Prețul licitației (USD)"
-                  value={auctionPrice}
-                  onChange={setAuctionPrice}
-                  prefix="$"
-                  hint="Prețul câștigător al licitației, fără taxe"
-                />
-
-                {hasPrice && (
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 flex items-start gap-3">
-                    <Info className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                    <p className="text-xs text-blue-700">
-                      Taxe cumpărător {platform === "copart" ? "Copart" : "IAAI"} estimate:{" "}
-                      <strong>{fmtUSD(calc.buyerFee)}</strong> pentru un preț de {fmtUSD(calc.price)}
-                    </p>
-                  </div>
-                )}
-
-                {/* Advanced settings toggle */}
-                <button
-                  type="button"
-                  onClick={() => setShowAdvanced(!showAdvanced)}
-                  className="flex items-center gap-2 text-sm text-accent font-semibold hover:text-accent/80 transition-colors"
-                >
-                  {showAdvanced ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                  {showAdvanced ? "Ascunde" : "Ajustează"} parametrii avansați
-                </button>
-
-                {showAdvanced && (
-                  <div className="space-y-4 pt-2 border-t border-slate-100">
-                    <p className="text-xs text-slate-500 font-medium uppercase tracking-wide">
-                      Ajustează valorile în funcție de situația ta
-                    </p>
-
-                    <NumInput
-                      label="Curs valutar EUR/USD"
-                      value={eurUsd}
-                      onChange={setEurUsd}
-                      hint="1 USD = câți EUR (ex: 0.92)"
-                    />
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <NumInput
-                        label="Transport intern SUA ($)"
-                        value={usTransport}
-                        onChange={setUsTransport}
-                        prefix="$"
-                        hint="Licitație → port export"
-                      />
-                      <NumInput
-                        label="Freight oceanic ($)"
-                        value={oceanFreight}
-                        onChange={setOceanFreight}
-                        prefix="$"
-                        hint="SUA → Bremerhaven, DE"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <NumInput
-                        label="Handling port Bremerhaven (€)"
-                        value={portHandling}
-                        onChange={setPortHandling}
-                        prefix="€"
-                        hint="Taxe port Germania"
-                      />
-                      <NumInput
-                        label="Transport Bremerhaven → RO (€)"
-                        value={roTransport}
-                        onChange={setRoTransport}
-                        prefix="€"
-                        hint="Livrare în România"
-                      />
-                    </div>
-
-                    <NumInput
-                      label="RAR + Omologare (€)"
-                      value={rarFee}
-                      onChange={setRarFee}
-                      prefix="€"
-                      hint="Taxe RAR, ITP, înmatriculare estimat"
+              {/* 2. Bid price input */}
+              <div className="mb-6">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-2">
+                  Oferta ta (USD)
+                </label>
+                <div className="flex items-center border border-slate-200 rounded-xl overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => setBidPrice(Math.max(0, bidPrice - 100))}
+                    className="px-4 py-3 text-slate-400 hover:text-primary hover:bg-slate-50 transition-colors text-lg font-medium"
+                  >−</button>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
+                    <input
+                      type="number"
+                      value={bidPrice}
+                      onChange={(e) => setBidPrice(Math.max(0, Number(e.target.value)))}
+                      className="w-full pl-7 pr-3 py-3 text-center text-base font-bold text-primary focus:outline-none bg-transparent"
                     />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setBidPrice(bidPrice + 100)}
+                    className="px-4 py-3 text-slate-400 hover:text-primary hover:bg-slate-50 transition-colors text-lg font-medium"
+                  >+</button>
+                </div>
+              </div>
+
+              {/* 3. State dropdown */}
+              <div className="mb-6">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-2">
+                  Statul vehiculului
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedState}
+                    onChange={(e) => setSelectedState(e.target.value)}
+                    className="w-full appearance-none border border-slate-200 rounded-xl px-4 py-3 pr-10 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent bg-white cursor-pointer"
+                  >
+                    {US_STATES.map((state) => (
+                      <option key={state.code} value={state.code}>
+                        {state.name}
+                        {state.code && STATE_TRANSPORT_PAGE[state.code]
+                          ? ` — $${STATE_TRANSPORT_PAGE[state.code].cost.toLocaleString("ro-RO")}`
+                          : ""}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 pointer-events-none" />
+                </div>
+                {transportInfo && (
+                  <p className="text-[10px] text-slate-400 mt-2">
+                    Port: {transportInfo.port} · Cost transport: ${transportInfo.cost.toLocaleString("ro-RO")}
+                  </p>
                 )}
-              </CardContent>
-            </Card>
+              </div>
+
+              {/* 4. Vehicle type for Romania transport */}
+              <div className="mb-6">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-2">
+                  Tip vehicul (pentru transport Rotterdam → România)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { type: "sedan", label: "Sedan", cost: 850 },
+                    { type: "suv", label: "SUV", cost: 900 },
+                    { type: "pickup", label: "Pickup", cost: 1100 },
+                  ] as const).map((v) => (
+                    <button
+                      key={v.type}
+                      type="button"
+                      onClick={() => setVehicleType(v.type)}
+                      className={`py-2.5 px-3 rounded-lg border text-xs font-semibold transition-all ${
+                        vehicleType === v.type
+                          ? "border-accent bg-accent/10 text-accent"
+                          : "border-slate-200 text-slate-500 hover:border-slate-300"
+                      }`}
+                    >
+                      {v.label}
+                      <span className="block text-[10px] font-normal mt-0.5">€{v.cost}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 5. Advanced options */}
+              <details className="group">
+                <summary className="text-xs text-slate-400 cursor-pointer hover:text-accent flex items-center gap-1 transition-colors font-medium">
+                  <Settings className="h-3 w-3" />
+                  Ajustează parametrii avansați
+                </summary>
+                <div className="mt-4 space-y-4 pt-4 border-t border-slate-100">
+                  <AdvancedInput
+                    label="Curs EUR/USD"
+                    value={eurUsdRate}
+                    onChange={setEurUsdRate}
+                    step={0.01}
+                    min={0.5}
+                    max={2}
+                  />
+                </div>
+              </details>
+            </div>
 
             {/* Info card */}
-            <Card className="border-0 shadow-md bg-gradient-to-br from-slate-800 to-slate-900 text-white">
-              <CardContent className="pt-6 pb-6 px-6">
-                <h3 className="font-bold text-base mb-3 flex items-center gap-2">
-                  <Info className="h-4 w-4 text-blue-300" />
-                  Despre această estimare
-                </h3>
-                <ul className="space-y-2 text-sm text-slate-300">
-                  <li>• Taxele vamale UE sunt calculate la <strong className="text-white">6.5% din valoarea CIF</strong></li>
-                  <li>• TVA se aplică la <strong className="text-white">19%</strong> din (valoare CIF + taxă vamală)</li>
-                  <li>• Estimarea nu include eventuale costuri de reparație</li>
-                  <li>• Prețurile de transport pot varia în funcție de sezon și locație</li>
-                  <li>• Comisionul MC SUA este stabilit individual, la consultanță</li>
-                </ul>
-                <div className="mt-4 pt-4 border-t border-slate-700">
-                  <p className="text-xs text-slate-400">
-                    Pentru o ofertă exactă și personalizată, contactează echipa MC SUA.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* ── RIGHT: Breakdown ──────────────────────────────────────────── */}
-          <div className="space-y-6">
-            <Card className="border-0 shadow-xl sticky top-6">
-              <CardContent className="pt-6 pb-8 px-6">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="p-2.5 bg-accent/10 rounded-xl">
-                    <TrendingDown className="h-5 w-5 text-accent" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-lg text-primary">Detalii cost estimat</h2>
-                    <p className="text-xs text-slate-500">Toate valorile sunt aproximative</p>
-                  </div>
-                </div>
-
-                {!hasPrice ? (
-                  <div className="text-center py-12 text-slate-400">
-                    <Calculator className="h-12 w-12 mx-auto mb-3 opacity-30" />
-                    <p className="text-sm">Introdu prețul licitației pentru a vedea estimarea</p>
-                  </div>
-                ) : (
-                  <div className="space-y-0">
-
-                    {/* SUA costs */}
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2">
-                      <DollarSign className="h-3 w-3" /> Costuri în SUA
-                    </p>
-                    <Row label="Preț licitație" value={fmtUSD(calc.price)} />
-                    <Row
-                      label={`Taxe cumpărător ${platform === "copart" ? "Copart" : "IAAI"}`}
-                      value={fmtUSD(calc.buyerFee)}
-                      sub="Estimat pe baza prețului de adjudecare"
-                    />
-                    <Row label="Transport intern SUA (auction → port)" value={fmtUSD(calc.usT)} />
-
-                    {/* Transport */}
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-5 mb-2 flex items-center gap-2">
-                      <Ship className="h-3 w-3" /> Transport oceanic
-                    </p>
-                    <Row label="Freight oceanic SUA → Bremerhaven" value={fmtUSD(calc.ocean)} />
-                    <Row
-                      label="Total costuri USD → EUR"
-                      value={fmt(calc.totalEUR)}
-                      sub={`${fmtUSD(calc.totalUSD)} × ${calc.rate} EUR/USD`}
-                      accent
-                    />
-
-                    {/* Customs */}
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-5 mb-2 flex items-center gap-2">
-                      <FileText className="h-3 w-3" /> Vamă & taxe România
-                    </p>
-                    <Row
-                      label="Valoare CIF (baza de calcul vamal)"
-                      value={fmt(calc.cif)}
-                      sub="Cost + Insurance + Freight în EUR"
-                    />
-                    <Row
-                      label="Taxă vamală UE (6.5% × CIF)"
-                      value={fmt(calc.customsDuty)}
-                    />
-                    <Row
-                      label="TVA 19% × (CIF + taxă vamală)"
-                      value={fmt(calc.vat)}
-                    />
-
-                    {/* RO logistics */}
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mt-5 mb-2 flex items-center gap-2">
-                      <Car className="h-3 w-3" /> Logistică & taxe finale
-                    </p>
-                    <Row label="Handling port Bremerhaven" value={fmt(calc.portH)} />
-                    <Row label="Transport Bremerhaven → România" value={fmt(calc.roT)} />
-                    <Row
-                      label="RAR + Omologare + Înmatriculare"
-                      value={fmt(calc.rar)}
-                      sub="Estimat, poate varia"
-                    />
-
-                    {/* TOTAL */}
-                    <Row label="TOTAL ESTIMAT" value={fmt(calc.total)} total />
-
-                    <p className="text-xs text-slate-400 mt-4 text-center">
-                      * Estimare orientativă, exclusiv comision MC SUA și eventuale reparații
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* CTA */}
-            <div className="text-center space-y-3">
-              <p className="text-sm text-slate-500">
-                Ai găsit o mașină pe Copart sau IAAI? Trimite-ne link-ul și îți oferim consultanță gratuită.
-              </p>
-              <Button asChild size="lg" className="bg-accent hover:bg-accent/90 text-white w-full h-14 text-base font-semibold shadow-lg shadow-accent/25">
-                <Link href="/contact" className="flex items-center justify-center gap-2">
-                  Solicită consultanță gratuită
-                  <ArrowRight className="h-5 w-5" />
-                </Link>
-              </Button>
+            <div className="bg-blue-50 rounded-2xl p-5 flex gap-3">
+              <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <div className="text-sm text-blue-700">
+                <p className="font-semibold mb-1">De ce să alegi MC SUA?</p>
+                <p className="text-blue-600 text-xs leading-relaxed">
+                  Noi gestionăm întregul proces — de la licitație până la înmatriculare în România.
+                  Plătești un comision fix de €1.000 și nu ai surprize. Livrare în 6-10 săptămâni.
+                </p>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* ── How customs work section ───────────────────────────────────────── */}
-        <div className="max-w-6xl mx-auto mt-16">
-          <h2 className="text-2xl sm:text-3xl font-bold text-primary text-center mb-10">
-            Cum se calculează taxele de import?
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              {
-                icon: <DollarSign className="h-6 w-6 text-accent" />,
-                title: "1. Taxe platformă",
-                desc: "Copart și IAAI aplică taxe de cumpărător pe baza prețului adjudecat, conform unui barem progresiv.",
-              },
-              {
-                icon: <Ship className="h-6 w-6 text-accent" />,
-                title: "2. Transport & Freight",
-                desc: "Mașina este transportată la portul din SUA, apoi cu nava până în portul Bremerhaven, Germania.",
-              },
-              {
-                icon: <FileText className="h-6 w-6 text-accent" />,
-                title: "3. Vamă UE",
-                desc: "Taxă vamală 6.5% + TVA 19% calculate pe valoarea CIF (prețul + asigurare + transport).",
-              },
-              {
-                icon: <Car className="h-6 w-6 text-accent" />,
-                title: "4. Livrare în RO",
-                desc: "Transport auto de la Bremerhaven la tine acasă, plus taxe RAR, omologare și înmatriculare.",
-              },
-            ].map((item, i) => (
-              <Card key={i} className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                <CardContent className="pt-6 pb-6">
-                  <div className="p-3 bg-accent/10 rounded-xl w-fit mb-4">{item.icon}</div>
-                  <h3 className="font-bold text-primary mb-2">{item.title}</h3>
-                  <p className="text-sm text-slate-500 leading-relaxed">{item.desc}</p>
-                </CardContent>
-              </Card>
-            ))}
+          {/* ══════ RIGHT: Breakdown ══════ */}
+          <div>
+            <div className="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden sticky top-24">
+              {/* Header cu Total General */}
+              <div className="bg-gradient-to-r from-primary to-slate-700 px-5 py-4">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-slate-300 text-xs uppercase tracking-widest font-medium">1 – 13 Total General</span>
+                </div>
+                <div className="text-3xl font-extrabold text-white">{fmt(totalGeneral)}</div>
+                <p className="text-slate-400 text-xs mt-1">Consultație gratuită inclusă</p>
+              </div>
+
+              {/* CTA button */}
+              <div className="px-5 pt-4 pb-4">
+                <Button asChild className="w-full bg-accent hover:bg-accent/90 h-11 font-bold text-sm shadow-lg shadow-accent/20">
+                  <Link href="/contact" className="flex items-center justify-center gap-2">
+                    <Phone className="h-4 w-4" />
+                    Obține Detalii
+                  </Link>
+                </Button>
+                <Link
+                  href="/cum-functioneaza"
+                  className="w-full flex items-center justify-center gap-2 border border-slate-200 text-slate-500 font-semibold px-4 py-2.5 rounded-xl text-sm hover:border-accent hover:text-accent transition-all mt-2"
+                >
+                  <Info className="h-4 w-4" />
+                  Cum funcționează importul?
+                </Link>
+              </div>
+
+              {/* ── COSTURI SUA ── */}
+              <div className="px-5 pb-1">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+                  Costuri SUA
+                </h3>
+                <div className="space-y-2">
+                  <CostRow
+                    num={1}
+                    label="Preț lot"
+                    value={fmtUSD(bidPrice)}
+                    highlight
+                    tooltip="Bid-ul curent afișat nu reprezintă prețul final de achiziție. Prețul final poate fi mai mare în funcție de licitație."
+                  />
+                  <CostRow
+                    num={2}
+                    label="Taxe licitație"
+                    sublabel={platform === "iaai" ? "IAAI · 10% (min. $600)" : "Copart · 12% (min. $600)"}
+                    value={fmtUSD(buyerFee)}
+                    tooltip="Sub $6.000 taxă minimă $600. Peste $6.000: IAAI 10% / Copart 12%. MC SUA nu adaugă taxe de broker."
+                  />
+                  <CostRow
+                    num={3}
+                    label="Transport SUA → Rotterdam"
+                    sublabel={transportInfo ? `${transportInfo.port} · 4-6 săptămâni` : "Selectează statul pentru cost"}
+                    value={transportInfo ? fmtUSD(usaTransport) : "De confirmat"}
+                  />
+                  <CheckRow
+                    num={4}
+                    label="Taxă port USA – Hibrid/Electric"
+                    sublabel="$400 · aplicabil vehiculelor hibrid sau electrice"
+                    value={fmtUSD(400)}
+                    checked={includePortTax}
+                    onChange={setIncludePortTax}
+                  />
+                  <CheckRow
+                    num={5}
+                    label="Schimbare certificat de titlu"
+                    sublabel="Salvage → Clean · $550 în regim de urgență (3 zile lucrătoare)"
+                    value={fmtUSD(550)}
+                    checked={includeSalvageTitle}
+                    onChange={setIncludeSalvageTitle}
+                  />
+                  <CostRow
+                    num={6}
+                    label="Documentație export"
+                    sublabel="Titlu de export, procuri, acte vamale SUA"
+                    value={fmtUSD(exportDocs)}
+                  />
+                </div>
+                <div className="flex justify-between items-center mt-3 py-2.5 border-t border-slate-100">
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">1 – 6  TOTAL SUA</span>
+                  <span className="text-sm font-extrabold text-primary">{fmtUSD(totalUSA)}</span>
+                </div>
+              </div>
+
+              {/* ── COSTURI UE ── */}
+              <div className="px-5 pt-1 pb-4">
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+                  Costuri UE
+                </h3>
+                <div className="space-y-2">
+                  {/* Item 7: Valoare declaratie vamala */}
+                  <div className="mb-1">
+                    <span className="text-[10px] text-slate-400 font-medium block mb-1">
+                      7. Valoare declarație vamală (USD)
+                    </span>
+                    <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 text-sm font-bold text-primary">
+                      $ {Math.round(totalUSA).toLocaleString("ro-RO")}
+                    </div>
+                  </div>
+                  <CheckRow
+                    num={8}
+                    label="Asigurare transport maritim"
+                    sublabel="(1% din valoarea bunului)"
+                    value={fmt(cifEUR * 0.01)}
+                    checked={includeInsurance}
+                    onChange={setIncludeInsurance}
+                  />
+                  <CostRow
+                    num={9}
+                    label="Taxă vamală"
+                    sublabel="(10%)"
+                    value={fmt(customsDuty)}
+                    infoLink="/contact"
+                    infoText="Confirmă cu noi"
+                  />
+                  <CostRow
+                    num={10}
+                    label="TVA"
+                    sublabel="(21%)"
+                    value={fmt(tva)}
+                    tooltip="Dacă achiziția se face pe firmă plătitoare de TVA, taxa nu se mai plătește la import."
+                  />
+                  <CostRow num={11} label="Comision intermediere MC SUA" value={fmt(commissionMCSUA)} />
+                  <CostRow
+                    num={12}
+                    label="Manipulare în port Rotterdam"
+                    value={fmt(portHandling)}
+                    tooltip="Valoare orientativă. Costul final poate varia în funcție de port și dimensiunile vehiculului."
+                  />
+                  <CheckRow
+                    num={13}
+                    label="Rotterdam → România"
+                    sublabel={`Sedan €850 · SUV €900 · Pickup €1.100`}
+                    value={fmt(roTransportCost)}
+                    checked={includeRoTransport}
+                    onChange={setIncludeRoTransport}
+                  />
+                </div>
+                <div className="flex justify-between items-center mt-3 py-2.5 border-t border-slate-100">
+                  <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">7 – 13  TOTAL IMPORT</span>
+                  <span className="text-sm font-extrabold text-primary">{fmt(totalEU)}</span>
+                </div>
+              </div>
+
+              {/* Footer note */}
+              <div className="px-5 pb-4 border-t border-slate-100 pt-3">
+                <p className="text-center text-xs text-slate-400">
+                  Estimare orientativă • prețuri reale la consultanță
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
