@@ -1017,6 +1017,8 @@ export default function VehicleDetailPage() {
     );
   }
 
+  const sellerInfo = displaySeller(vehicle.platform, vehicle.seller, vehicle.sellerType);
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white pb-16">
       {/* ── Breadcrumb ── */}
@@ -1082,6 +1084,9 @@ export default function VehicleDetailPage() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {vehicle.platform === "copart" && (
+                  <p className="text-xs text-slate-500 mt-2">Vânzătorul nu e divulgat de Copart — <Link href="/contact" className="text-accent underline font-medium">verificăm noi la cerere</Link></p>
                 )}
                 <p className="mt-2 text-[11px] text-slate-400">
                   Evaluare automată orientativă, pe baza titlului și stării — nu înlocuiește verificarea finală.
@@ -1218,15 +1223,21 @@ export default function VehicleDetailPage() {
                 {vehicle.secondaryDamage && <SpecRow label="Daună secundară" value={tDamage(vehicle.secondaryDamage)} />}
                 <SpecRow label="Chei" value={vehicle.hasKey ? "Da" : "Nu"} />
                 <SpecRow label="Airbag-uri" value={vehicle.airbags} />
-                <SpecRow
-                  label="Vânzător"
-                  value={displaySeller(vehicle.platform, vehicle.seller, vehicle.sellerType).text}
-                  valueClassName={`text-xs font-semibold ${
-                    displaySeller(vehicle.platform, vehicle.seller, vehicle.sellerType).kind === "insurance"
+                <div className="flex items-start gap-3 py-2.5 border-b border-slate-100 last:border-0">
+                  <span className="text-xs text-slate-400 font-medium w-36 flex-shrink-0">Vânzător</span>
+                  <span className={`text-xs font-semibold ${
+                    sellerInfo.kind === "insurance"
                       ? "text-green-600"
+                      : sellerInfo.kind === "verify"
+                      ? "text-amber-600"
                       : "text-slate-500"
-                  }`}
-                />
+                  }`}>
+                    {sellerInfo.text}
+                    {(sellerInfo.kind === "verify" || sellerInfo.kind === "unknown") && (
+                      <Link href="/contact" className="text-accent underline font-medium ml-1">verifică cu noi →</Link>
+                    )}
+                  </span>
+                </div>
                 <SpecRow label="Locație yard" value={`${vehicle.location}${vehicle.state ? `, ${vehicle.state}` : ""}`} />
                 {vehicle.auctionDate && (
                   <SpecRow

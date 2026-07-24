@@ -14,7 +14,7 @@ export type TitleKind =
   | "junk"
   | "unknown";
 
-export type SellerKind = "insurance" | "dealer" | "individual" | "fleet" | "unknown";
+export type SellerKind = "insurance" | "dealer" | "individual" | "fleet" | "verify" | "unknown";
 
 // ── Daune ────────────────────────────────────────────────────────────────────
 export function translateDamage(v: string): string {
@@ -78,29 +78,26 @@ export function translateTitle(v: string): { label: string; kind: TitleKind } {
 // ── Vânzător ──────────────────────────────────────────────────────────────────
 const INSURERS = /insurance|geico|allstate|progressive|state farm|nationwide|farmers|liberty mutual|usaa|esurance|mercury|travelers|american family|hartford/i;
 
-export function displaySeller(_platform: Platform, seller?: string, sellerType?: string): { text: string; kind: SellerKind } {
+export function displaySeller(platform: Platform, seller?: string, sellerType?: string): { text: string; kind: SellerKind } {
   const raw = (seller || "").trim();
   const t = (sellerType || "").toLowerCase();
+  const isNon = /non[-_ ]?insurance/.test(t) || /non[-_ ]?insurance/.test(raw.toLowerCase());
+
+  // Copart NU divulgă vânzătorul real → datele Apibara sunt nesigure. Mereu "De verificat".
+  if (platform === "copart") {
+    return { text: "De verificat", kind: "verify" };
+  }
+
+  // IAAI expune vânzătorul real
   let kind: SellerKind = "unknown";
-  if (t.includes("insurance") || INSURERS.test(raw)) kind = "insurance";
+  if (!isNon && (t === "insurance" || INSURERS.test(raw))) kind = "insurance";
   else if (t.includes("dealer")) kind = "dealer";
-  else if (t.includes("individual") || t.includes("public") || t.includes("private") || t.includes("consumer")) kind = "individual";
+  else if (isNon || t.includes("individual") || t.includes("public") || t.includes("private")) kind = "individual";
   else if (t.includes("financ") || t.includes("bank") || t.includes("lease") || t.includes("rental") || t.includes("fleet")) kind = "fleet";
 
-  let text: string;
-  if (raw) {
-    text = raw;
-  } else {
-    switch (kind) {
-      case "insurance": text = "Companie de asigurări"; break;
-      case "dealer": text = "Dealer"; break;
-      case "individual": text = "Persoană fizică"; break;
-      case "fleet": text = "Companie / flotă"; break;
-      default: text = "Nespecificat";
-    }
-  }
-  const suffix = raw && kind === "insurance" ? " · asigurător" : raw && kind === "fleet" ? " · flotă / financiar" : "";
-  return { text: text + suffix, kind };
+  const base = raw || (kind === "insurance" ? "Companie de asigurări" : kind === "dealer" ? "Dealer" : kind === "individual" ? "Vânzător privat" : kind === "fleet" ? "Companie / flotă" : "Nespecificat");
+  const suffix = kind === "insurance" && raw ? " · asigurător" : "";
+  return { text: base + suffix, kind };
 }
 
 // ── Recomandare orientativă ───────────────────────────────────────────────────
@@ -164,8 +161,12 @@ export function getRecommendation(input: RecoInput): Reco {
 
   if (input.secondaryDamage && input.secondaryDamage.trim()) reasons.push("Are și daună secundară — verifică ambele zone");
 
-  // Vânzător
-  if ((input.sellerType || "").toLowerCase().includes("insurance")) { score += 1; reasons.push("Vânzător: companie de asigurări (proveniență clară)"); }
+  // Vânzător — semnal de încredere DOAR la IAAI cu asigurare reală (Copart nu divulgă vânzătorul)
+  const st = (input.sellerType || "").toLowerCase();
+  if (input.platform === "iaai" && st === "insurance") {
+    score += 1;
+    reasons.push("Vânzător: companie de asigurări (proveniență clară)");
+  }
 
   let level: Reco["level"];
   let label: string;
