@@ -79,7 +79,7 @@ REGULI IMPORTANTE:
 - La întrebarea 'cât ar ajunge la licitație', explică că bid-ul curent e minimul și prețul final depinde de cerere; folosește average_price ca reper pentru unde se vând de obicei modelele similare. Nu garanta un preț exact.
 - FILTRE: aplică ÎNTOTDEAUNA în search_cars TOATE criteriile pe care le menționează clientul, nu ignora niciunul: kilometraj (odometer_max_km, în KM), combustibil (fuel: benzină=Gasoline, diesel=Diesel, hibrid=Hybrid, electric=Electric), tracțiune (drive: integrală=AWD, față=FWD, spate=RWD), cutie (transmission: automată=Automatic, manuală=Manual), an (year_from/year_to), preț maxim (price_max), tip vânzare (sale_type). Traduci termenii clientului în valorile de mai sus.
 - Când clientul zice 'de la [an] în sus' / '[an]+', setează DOAR year_from (fără year_to). Nu restrânge la un singur an decât dacă cere explicit 'exact [an]'.
-- Afișează primele 5 rezultate ca listă cu link-uri clickable, iar ULTIMUL rând este link-ul 'Vezi toată lista filtrată' generat de tool — păstrează-l mereu.
+- Afișează primele 5 rezultate ca listă cu link-uri clickable, iar ULTIMUL rând este link-ul 'Vezi toată lista filtrată' generat de tool — păstrează-l mereu. Folosește numărul EXACT de mașini raportat de tool (nu inventa, nu număra doar cele afișate). Arată primele câteva și include mereu linkul 'Vezi toată lista filtrată' pentru restul.
 - REZOLVAREA MODELULUI (obligatoriu): numele modelelor din catalog pot diferi de cum le scrie clientul (ex: clientul zice '430 ix', în catalog există '430I' și '430XI'; sau 'seria 4' = 430I/430XI/435I/440XI etc). Când clientul cere un model specific, ÎNAINTE de search_cars apelează ÎNTOTDEAUNA list_models(make, query) ca să vezi denumirile REALE. Dacă există un singur match clar, spune-i clientului ce filtru folosești ('Am găsit modelul 430XI în catalog') și caută cu acea denumire EXACTĂ. Dacă sunt mai multe variante plauzibile (ex: 430I și 430XI), ÎNTREABĂ clientul care dintre ele îl interesează, listându-le, apoi caută cu denumirea aleasă. NU ghici modelul din cunoștințele tale și NU căuta cu un nume neconfirmat. NU spune 'nu avem' până nu ai verificat cu list_models.
 - CALCUL COST: când clientul întreabă de costul unei mașini specifice (a menționat una din listă, un VIN sau un link), folosește calculate_cost cu identifier ca să dai cifrele EXACTE ale acelei mașini, defalcate pe fiecare linie. Pentru întrebări generale (fără o mașină anume), folosește calculate_cost cu bid_price + platform.
 - Când clientul vrea oferta completă, să meargă mai departe, sau detalii finale, oferă DOUĂ opțiuni clickable (NU email):
@@ -201,8 +201,9 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
       vehicles = vehicles.sort((a, b) => bidOf(a) - bidOf(b));
     }
 
+    if (!vehicles.length) return "Nu am găsit mașini cu aceste criterii momentan.";
+    const total = vehicles.length;
     const shown = vehicles.slice(0, 6);
-    if (!shown.length) return "Nu am găsit mașini cu aceste criterii momentan.";
 
     const lines = shown.map((v: any) => {
       const vin = v.vin || v.lot_number;
@@ -228,8 +229,12 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     if (input.transmission) cp.set("transmission", String(input.transmission));
     if (saleType === "buy_now") cp.set("lotStatus", "Buy Now");
     else if (saleType === "auction") cp.set("lotStatus", "Timed");
+
+    const header = total > shown.length
+      ? `Am găsit ${total} mașini care se potrivesc. Primele ${shown.length} (cele mai ieftine întâi):`
+      : `Am găsit ${total} mașini:`;
     lines.push(`- [Vezi toată lista filtrată pe mcsua.ro](https://mcsua.ro/catalog?${cp.toString()})`);
-    return lines.join("\n");
+    return header + "\n" + lines.join("\n");
   }
 
   if (name === "calculate_cost") {
