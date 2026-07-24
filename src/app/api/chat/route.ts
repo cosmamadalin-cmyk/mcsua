@@ -426,6 +426,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  if (!process.env.MCSUA_AI_KEY) {
+    console.error("MCSUA_AI_KEY lipsește din environment");
+    return NextResponse.json({ message: "Asistentul este temporar indisponibil (configurare). Vă rugăm contactați-ne la +40 764 806 987." }, { status: 200 });
+  }
+
   let body: unknown;
   try {
     body = await req.json();
@@ -456,34 +461,39 @@ export async function POST(req: NextRequest) {
     content: m.content,
   }));
 
-  let response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    tools,
-    messages: msgs,
-  });
-
-  while (response.stop_reason === "tool_use") {
-    const toolBlocks = response.content.filter(b => b.type === "tool_use") as Anthropic.ToolUseBlock[];
-    const results: Anthropic.ToolResultBlockParam[] = [];
-    for (const b of toolBlocks) {
-      const out = await executeTool(b.name, b.input as Record<string, unknown>);
-      results.push({ type: "tool_result", tool_use_id: b.id, content: out });
-    }
-    response = await client.messages.create({
+  try {
+    let response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
       tools,
-      messages: [
-        ...msgs,
-        { role: "assistant", content: response.content },
-        { role: "user", content: results },
-      ],
+      messages: msgs,
     });
-  }
 
-  const text = response.content.find(b => b.type === "text") as Anthropic.TextBlock | undefined;
-  return NextResponse.json({ message: text?.text || "Nu am putut genera un răspuns." });
+    while (response.stop_reason === "tool_use") {
+      const toolBlocks = response.content.filter(b => b.type === "tool_use") as Anthropic.ToolUseBlock[];
+      const results: Anthropic.ToolResultBlockParam[] = [];
+      for (const b of toolBlocks) {
+        const out = await executeTool(b.name, b.input as Record<string, unknown>);
+        results.push({ type: "tool_result", tool_use_id: b.id, content: out });
+      }
+      response = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        tools,
+        messages: [
+          ...msgs,
+          { role: "assistant", content: response.content },
+          { role: "user", content: results },
+        ],
+      });
+    }
+
+    const text = response.content.find(b => b.type === "text") as Anthropic.TextBlock | undefined;
+    return NextResponse.json({ message: text?.text || "Nu am putut genera un răspuns." });
+  } catch (err) {
+    console.error("Eroare /api/chat:", err);
+    return NextResponse.json({ message: "Scuze, asistentul a întâmpinat o problemă. Vă rugăm încercați din nou sau contactați-ne la +40 764 806 987." }, { status: 200 });
+  }
 }
