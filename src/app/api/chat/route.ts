@@ -5,6 +5,7 @@ import {
   type ImportCostVehicle,
   type ImportCostOptions,
 } from "@/lib/import-cost";
+import { translateTitle, translateDamage, translateRunCondition } from "@/lib/vehicle-normalize";
 
 const client = new Anthropic({ apiKey: process.env.MCSUA_AI_KEY ?? "" });
 
@@ -367,16 +368,22 @@ Sunt prețuri finale de licitație — costul de import se adaugă peste.`;
     const cond = v.condition || {};
     const specs = v.vehicle_specs || {};
     const loc = typeof v.location === "string" ? v.location : (v.location?.display || "");
-    const title = v.sale_document?.name || v.title_type || v.title || "-";
+    const rawTitle = String(v.sale_document?.name || v.title_type || v.title || "");
+    const title = rawTitle ? translateTitle(rawTitle).label : "-";
+    const rawPrimaryDamage = String(cond.primary_damage || cond.loss || v.damage || "");
+    const rawSecondaryDamage = String(cond.secondary_damage || cond.secondary_loss || "");
+    const damageStr = rawPrimaryDamage ? translateDamage(rawPrimaryDamage) : "-";
+    const rcObj = cond.run_condition;
+    const rawRc = rcObj && typeof rcObj === "object" ? String(rcObj.label || rcObj.value || "") : String(rcObj ?? v.run_condition ?? "");
     const odoNum = typeof v.odometer === "number" ? v.odometer : (v.odometer?.mi ?? v.odometer?.km ?? 0);
     const bid = pr.current_bid_usd ?? pr.current_bid ?? 0;
     const slug = v.vin || v.lot_number;
     return `**${v.year || ""} ${v.make || ""} ${v.model || ""}${v.trim ? " " + v.trim : ""}**
 VIN: ${v.vin || "-"} | Lot: ${v.lot_number || "-"} | ${v.platform || ""}
 Titlu: ${title}
-Daună: ${cond.loss || v.damage || "-"}${cond.secondary_loss ? " + " + cond.secondary_loss : ""}
+Daună: ${damageStr}${rawSecondaryDamage ? " + " + translateDamage(rawSecondaryDamage) : ""}
 Rulaj: ${odoNum ? odoNum.toLocaleString() : "-"}
-Stare: ${cond.run_condition ?? v.run_condition ?? "-"}
+Stare: ${rawRc ? translateRunCondition(rawRc) : "-"}
 Chei: ${cond.key ?? (v.has_key ? "Da" : "-")}
 Motor: ${specs.engine || "-"} | ${specs.fuel_type || v.fuel_type || "-"} | ${specs.transmission || v.transmission || "-"}
 Locație: ${loc || "-"}

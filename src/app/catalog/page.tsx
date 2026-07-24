@@ -10,6 +10,7 @@ import {
   CheckCircle2, ArrowRight, RefreshCw, ChevronLeft, ChevronRight,
   ExternalLink, Zap, Info, ChevronDown, X, SlidersHorizontal,
 } from "lucide-react";
+import { translateRunCondition, translateDamage, translateTitle, getRecommendation } from "@/lib/vehicle-normalize";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 export interface Vehicle {
@@ -19,6 +20,7 @@ export interface Vehicle {
   estimatedBid: number; buyNow?: number; auctionDate?: string;
   location: string; state: string; images: string[]; hasKey: boolean;
   fuelType: string; transmission: string; engine?: string; runCondition: string; auctionUrl: string;
+  rawSecondaryDamage?: string; sellerType?: string;
 }
 
 interface MakeOption { name: string; models: string[]; }
@@ -126,6 +128,10 @@ function mapApiVehicle(v: any): Vehicle {
   const saleDoc = v.sale_document || {};
   const titleType = String(saleDoc.name || "Salvage Title");
   const damage = String(condition.primary_damage || condition.loss || "");
+  const rawSecondaryDamage = condition.secondary_damage ? String(condition.secondary_damage) : undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sellerObj = v.seller as any;
+  const sellerType = sellerObj && typeof sellerObj === "object" && sellerObj.type ? String(sellerObj.type) : undefined;
   const locRaw = v.location;
   const locationDisplay = !locRaw ? "" : typeof locRaw === "string" ? locRaw : String(locRaw.display || "");
   const state = !locRaw || typeof locRaw === "string" ? "" : String(locRaw.state || "");
@@ -143,6 +149,7 @@ function mapApiVehicle(v: any): Vehicle {
     odometer, odometerUnit, titleType, damage, estimatedBid: bid, buyNow, auctionDate,
     location: locationDisplay, state, images, hasKey, fuelType, transmission,
     engine: engine || undefined, runCondition,
+    rawSecondaryDamage, sellerType,
     auctionUrl: platform === "iaai" ? `https://www.iaai.com/vehicledetail/${lotNumber}~US` : `https://www.copart.com/lot/${lotNumber}`,
   };
 }
@@ -206,44 +213,9 @@ const TRANS_RO: Record<string, string> = {
 };
 function tFuel(v: string) { return FUEL_RO[v] || v; }
 function tTrans(v: string) { return TRANS_RO[v] || v; }
-function tCondition(v: string): string {
-  const vl = v.toLowerCase();
-  if (vl.includes("runs")) return "Pornește și merge";
-  if (vl.includes("stationary") || vl.includes("static")) return "Staționar";
-  if (vl.includes("enhanced")) return "Enhanced vehicles";
-  if (vl.includes("engine start")) return "Pornire motor";
-  return v;
-}
-function tDamage(v: string): string {
-  const vl = v.toLowerCase();
-  if (vl.includes("front") && vl.includes("rear")) return "Față și spate";
-  if (vl.includes("front end") || vl === "front") return "Față";
-  if (vl.includes("rear end") || vl === "rear") return "Spate";
-  if (vl.includes("side")) return "Lateral";
-  if (vl.includes("all over")) return "General";
-  if (vl.includes("mechanical")) return "Mecanică";
-  if (vl.includes("water") || vl.includes("flood")) return "Inundație";
-  if (vl.includes("fire")) return "Incendiu";
-  if (vl.includes("hail")) return "Grindină";
-  if (vl.includes("theft")) return "Recuperat după furt";
-  if (vl.includes("rollover")) return "Răsturnat";
-  if (vl.includes("vandal")) return "Vandalism";
-  if (vl.includes("normal wear")) return "Uzură normală";
-  if (vl.includes("minor dent") || vl.includes("minor scratch")) return "Zgârieturi/Lovituri minore";
-  return v;
-}
-function tTitleType(v: string): string {
-  const vl = v.toLowerCase();
-  if (vl.includes("clear") && vl.includes("dealer")) return "Titlu Curat - Doar Dealer";
-  if (vl.includes("salvage")) return "Titlu Salvage";
-  if (vl.includes("clean") || vl.includes("clear")) return "Titlu Curat";
-  if (vl.includes("certificate of title")) return "Certificat de Titlu";
-  if (vl.includes("non-repairable")) return "Nereparabil";
-  if (vl.includes("parts only")) return "Doar piese";
-  if (vl.includes("rebuilt")) return "Reconstruit";
-  if (vl.includes("junk")) return "Casare";
-  return v;
-}
+function tCondition(v: string): string { return translateRunCondition(v); }
+function tDamage(v: string): string { return translateDamage(v); }
+function tTitleType(v: string): string { return translateTitle(v).label; }
 
 // ── UI helpers ─────────────────────────────────────────────────────────────────
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -634,6 +606,17 @@ function FilterPanel({
 // ── Vehicle Card ───────────────────────────────────────────────────────────────
 function VehicleCard({ v }: { v: Vehicle }) {
   const [imgError, setImgError] = useState(false);
+  const reco = getRecommendation({
+    platform: v.platform,
+    titleKind: translateTitle(v.titleType).kind,
+    runConditionRaw: v.runCondition,
+    primaryDamage: v.damage,
+    secondaryDamage: v.rawSecondaryDamage,
+    hasKey: v.hasKey,
+    sellerType: v.sellerType,
+  });
+  const recoCls = reco.level === "good" ? "bg-green-100 text-green-700" : reco.level === "caution" ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700";
+  const recoDot = reco.level === "good" ? "🟢" : reco.level === "caution" ? "🟡" : "🔴";
   return (
     <Card className="border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden group">
       <div className="flex flex-row">
@@ -669,6 +652,11 @@ function VehicleCard({ v }: { v: Vehicle }) {
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold flex-shrink-0 ${v.titleType?.toLowerCase().includes("clean") ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>
               {v.titleType?.toLowerCase().includes("clean") ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
               {tTitleType(v.titleType)}
+            </span>
+          </div>
+          <div className="mb-1.5">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${recoCls}`}>
+              {recoDot} {reco.label}
             </span>
           </div>
           {v.damage && (

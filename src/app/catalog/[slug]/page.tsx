@@ -25,6 +25,7 @@ import {
   Zap,
 } from "lucide-react";
 import { computeImportCost } from "@/lib/import-cost";
+import { translateRunCondition, translateDamage, translateTitle, displaySeller, getRecommendation } from "@/lib/vehicle-normalize";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface VehicleDetail {
@@ -59,6 +60,7 @@ interface VehicleDetail {
   bodyType?: string;
   runCondition: string;
   seller?: string;
+  sellerType?: string;
   airbags?: string;
   auctionUrl: string;
 }
@@ -175,6 +177,7 @@ function mapDetailVehicle(v: any): VehicleDetail {
   const seller = sellerObj && typeof sellerObj === "object"
     ? String(sellerObj.name || "")
     : (sellerObj ? String(sellerObj) : undefined);
+  const sellerType = sellerObj && typeof sellerObj === "object" && sellerObj.type ? String(sellerObj.type) : undefined;
 
   // Auction date - handle multiple formats
   const auction = v.auction || {};
@@ -231,6 +234,7 @@ function mapDetailVehicle(v: any): VehicleDetail {
     driveType: specs.drive_type ? String(specs.drive_type) : undefined,
     bodyType: specs.body_style ? String(specs.body_style) : undefined,
     seller: seller || undefined,
+    sellerType,
     airbags: specs.airbags ? String(specs.airbags) : undefined,
     runCondition,
     auctionUrl: platform === "iaai"
@@ -270,14 +274,7 @@ function tDrive(v: string): string {
   return v;
 }
 
-function tCondition(v: string): string {
-  const vl = v.toLowerCase();
-  if (vl.includes("runs")) return "Pornește și merge";
-  if (vl.includes("stationary") || vl.includes("static")) return "Staționar";
-  if (vl.includes("enhanced")) return "Enhanced vehicles";
-  if (vl.includes("engine start")) return "Pornire motor";
-  return v;
-}
+function tCondition(v: string): string { return translateRunCondition(v); }
 
 function tBodyType(v: string): string {
   const vl = v.toLowerCase();
@@ -292,37 +289,9 @@ function tBodyType(v: string): string {
   return v;
 }
 
-function tDamage(v: string): string {
-  const vl = v.toLowerCase();
-  if (vl.includes("front") && vl.includes("rear")) return "Față și spate";
-  if (vl.includes("front end") || vl === "front") return "Față";
-  if (vl.includes("rear end") || vl === "rear") return "Spate";
-  if (vl.includes("side")) return "Lateral";
-  if (vl.includes("all over")) return "General";
-  if (vl.includes("mechanical")) return "Mecanică";
-  if (vl.includes("water") || vl.includes("flood")) return "Inundație";
-  if (vl.includes("fire")) return "Incendiu";
-  if (vl.includes("hail")) return "Grindină";
-  if (vl.includes("theft")) return "Recuperat după furt";
-  if (vl.includes("rollover")) return "Răsturnat";
-  if (vl.includes("vandal")) return "Vandalism";
-  if (vl.includes("normal wear")) return "Uzură normală";
-  if (vl.includes("minor dent") || vl.includes("minor scratch")) return "Zgârieturi/Lovituri minore";
-  return v;
-}
+function tDamage(v: string): string { return translateDamage(v); }
 
-function tTitleType(v: string): string {
-  const vl = v.toLowerCase();
-  if (vl.includes("clear") && vl.includes("dealer")) return "Titlu Curat - Doar Dealer";
-  if (vl.includes("salvage")) return "Titlu Salvage";
-  if (vl.includes("clean") || vl.includes("clear")) return "Titlu Curat";
-  if (vl.includes("certificate of title")) return "Certificat de Titlu";
-  if (vl.includes("non-repairable")) return "Nereparabil";
-  if (vl.includes("parts only")) return "Doar piese";
-  if (vl.includes("rebuilt")) return "Reconstruit";
-  if (vl.includes("junk")) return "Casare";
-  return v;
-}
+function tTitleType(v: string): string { return translateTitle(v).label; }
 
 // ── Auction Countdown Component ────────────────────────────────────────────────
 function AuctionCountdown({ auctionDate }: { auctionDate?: string }) {
@@ -811,12 +780,12 @@ function AdvancedInput({
 }
 
 // ── Spec row ───────────────────────────────────────────────────────────────────
-function SpecRow({ label, value }: { label: string; value?: string | number | boolean | null }) {
+function SpecRow({ label, value, valueClassName }: { label: string; value?: string | number | boolean | null; valueClassName?: string }) {
   if (value === undefined || value === null || value === "") return null;
   return (
     <div className="flex items-start gap-3 py-2.5 border-b border-slate-100 last:border-0">
       <span className="text-xs text-slate-400 font-medium w-36 flex-shrink-0">{label}</span>
-      <span className="text-xs text-slate-700 font-semibold">{String(value)}</span>
+      <span className={valueClassName || "text-xs text-slate-700 font-semibold"}>{String(value)}</span>
     </div>
   );
 }
@@ -987,6 +956,23 @@ export default function VehicleDetailPage() {
 
   const isCleanTitle = vehicle?.titleType?.toLowerCase().includes("clean");
 
+  const reco = vehicle
+    ? getRecommendation({
+        platform: vehicle.platform,
+        titleKind: translateTitle(vehicle.titleType).kind,
+        runConditionRaw: vehicle.runCondition,
+        primaryDamage: vehicle.damage,
+        secondaryDamage: vehicle.secondaryDamage,
+        hasKey: vehicle.hasKey,
+        sellerType: vehicle.sellerType,
+      })
+    : null;
+  const recoStyle = {
+    good: { badge: "bg-green-100 text-green-700", panel: "border-green-200 bg-green-50/60", dot: "🟢" },
+    caution: { badge: "bg-amber-100 text-amber-700", panel: "border-amber-200 bg-amber-50/60", dot: "🟡" },
+    warn: { badge: "bg-red-100 text-red-700", panel: "border-red-200 bg-red-50/60", dot: "🔴" },
+  } as const;
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
@@ -1070,7 +1056,7 @@ export default function VehicleDetailPage() {
                 }`}
               >
                 {isCleanTitle ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-                {vehicle.titleType}
+                {tTitleType(vehicle.titleType)}
               </span>
               {vehicle.runCondition === "Runs and Drives" && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-600">
@@ -1082,6 +1068,26 @@ export default function VehicleDetailPage() {
             <p className="text-sm text-slate-400 mt-1">
               LOT #{vehicle.lotNumber} · VIN: {vehicle.vin}
             </p>
+            {reco && (
+              <div className={`mt-3 rounded-xl border p-3 max-w-xl ${recoStyle[reco.level].panel}`}>
+                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${recoStyle[reco.level].badge}`}>
+                  {recoStyle[reco.level].dot} {reco.label}
+                </span>
+                {reco.reasons.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {reco.reasons.map((r, i) => (
+                      <li key={i} className="text-xs text-slate-600 flex items-start gap-1.5">
+                        <span className="text-slate-400 mt-0.5">•</span>
+                        <span>{r}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <p className="mt-2 text-[11px] text-slate-400">
+                  Evaluare automată orientativă, pe baza titlului și stării — nu înlocuiește verificarea finală.
+                </p>
+              </div>
+            )}
           </div>
 
           {vehicle.platform === "copart" ? (
@@ -1212,7 +1218,15 @@ export default function VehicleDetailPage() {
                 {vehicle.secondaryDamage && <SpecRow label="Daună secundară" value={tDamage(vehicle.secondaryDamage)} />}
                 <SpecRow label="Chei" value={vehicle.hasKey ? "Da" : "Nu"} />
                 <SpecRow label="Airbag-uri" value={vehicle.airbags} />
-                <SpecRow label="Vânzător" value={vehicle.seller} />
+                <SpecRow
+                  label="Vânzător"
+                  value={displaySeller(vehicle.platform, vehicle.seller, vehicle.sellerType).text}
+                  valueClassName={`text-xs font-semibold ${
+                    displaySeller(vehicle.platform, vehicle.seller, vehicle.sellerType).kind === "insurance"
+                      ? "text-green-600"
+                      : "text-slate-500"
+                  }`}
+                />
                 <SpecRow label="Locație yard" value={`${vehicle.location}${vehicle.state ? `, ${vehicle.state}` : ""}`} />
                 {vehicle.auctionDate && (
                   <SpecRow
