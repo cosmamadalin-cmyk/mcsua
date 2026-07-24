@@ -218,12 +218,14 @@ export default function Home() {
                 >
                   Caută mașini →
                 </Link>
-                <Link
-                  href="/cum-functioneaza"
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new Event("open-mcsua-chat"))}
                   className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white font-semibold px-8 py-3.5 rounded-xl border border-white/30 transition-all hover:scale-105 text-base"
                 >
-                  Cum Funcționează
-                </Link>
+                  <MessageSquare className="h-5 w-5" />
+                  Discută cu asistentul MC SUA
+                </button>
               </div>
 
               {/* Trust Indicators - Compact and readable - Responsive */}
