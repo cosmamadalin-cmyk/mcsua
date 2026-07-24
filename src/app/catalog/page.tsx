@@ -798,6 +798,28 @@ function CatalogContent() {
 
   const PER_PAGE = 12;
 
+  useEffect(() => {
+    const g = (...names: string[]) => { for (const n of names) { const v = searchParams.get(n); if (v) return v; } return ""; };
+    const make = g("make");
+    const model = g("model");
+    const search = g("search", "s");
+    const yearFrom = g("yearFrom", "year_from");
+    const yearTo = g("yearTo", "year_to");
+    const platform = g("platform", "auction_type");
+    const priceMin = g("priceMin", "price_min");
+    const priceMax = g("priceMax", "price_max");
+    const odoFrom = g("odoFrom", "odometer_from");
+    const odoTo = g("odoTo", "odometer_to");
+    const fuel = g("fuel", "fuel_type");
+    const transmission = g("transmission");
+    const drive = g("drive", "drive_type");
+    const lotStatus = g("lotStatus", "lot_status");
+    if (make || model || search || yearFrom || yearTo || platform || priceMin || priceMax || odoFrom || odoTo || fuel || transmission || drive || lotStatus) {
+      setFilters(prev => ({ ...prev, make, model, search, yearFrom, yearTo, platform, priceMin, priceMax, odoFrom, odoTo, fuel, transmission, drive, lotStatus }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Incarc filtrele de la Apibara
   useEffect(() => {
     fetch("/api/vehicles/filters").then((r) => r.json()).then((data) => setFiltersMeta(parseFiltersMeta(data))).catch(() => {}).finally(() => setFiltersLoading(false));

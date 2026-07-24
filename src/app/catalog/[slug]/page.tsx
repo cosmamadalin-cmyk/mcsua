@@ -24,6 +24,7 @@ import {
   Settings,
   Zap,
 } from "lucide-react";
+import { computeImportCost } from "@/lib/import-cost";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface VehicleDetail {
@@ -430,94 +431,6 @@ function AuctionCountdown({ auctionDate }: { auctionDate?: string }) {
   );
 }
 
-// ── Auction fee calculator ────────────────────────────────────────────────────
-function auctionFee(bid: number, platform: "copart" | "iaai"): number {
-  const minFee = 600;
-  const pct = platform === "iaai" ? 0.10 : 0.12;
-  return bid < 6000 ? minFee : Math.round(bid * pct);
-}
-
-// ── Transport info per state ───────────────────────────────────────────────────
-function getTransportInfo(state: string): { port: string; cost: number } {
-  // Extrage codul statului din diferite formate:
-  // "Atlanta East (GA)" -> GA
-  // "Detroit MI" -> MI
-  // "GA" -> GA
-  let s = "";
-  const withParens = state.match(/\(([A-Z]{2})\)/);
-  if (withParens) {
-    s = withParens[1];
-  } else {
-    // Caută ultimele 2 caractere uppercase după un spațiu, sau întregul string dacă are 2 litere
-    const withSpace = state.match(/\s([A-Z]{2})$/);
-    if (withSpace) {
-      s = withSpace[1];
-    } else {
-      const trimmed = (state || "").toUpperCase().trim();
-      s = trimmed.length === 2 ? trimmed : "";
-    }
-  }
-  const map: Record<string, { port: string; cost: number }> = {
-    AL: { port: "Savannah",  cost: 1610 },
-    AZ: { port: "Houston",   cost: 2400 },
-    AR: { port: "Houston",   cost: 1730 },
-    CA: { port: "Houston",   cost: 2400 },
-    NC: { port: "Savannah",  cost: 1645 },
-    SC: { port: "Savannah",  cost: 1560 },
-    CO: { port: "Houston",   cost: 2400 },
-    CT: { port: "New York",  cost: 1540 },
-    ND: { port: "New York",  cost: 1910 },
-    SD: { port: "New York",  cost: 1900 },
-    DE: { port: "New York",  cost: 1570 },
-    FL: { port: "Florida",   cost: 1580 },
-    GA: { port: "Savannah",  cost: 1565 },
-    ID: { port: "Houston",   cost: 2570 },
-    IL: { port: "New York",  cost: 1765 },
-    IN: { port: "New York",  cost: 1675 },
-    IA: { port: "Savannah",  cost: 1825 },
-    KS: { port: "Houston",   cost: 1765 },
-    KY: { port: "Savannah",  cost: 1610 },
-    LA: { port: "Houston",   cost: 1650 },
-    ME: { port: "New York",  cost: 1675 },
-    MD: { port: "New York",  cost: 1575 },
-    MA: { port: "New York",  cost: 1590 },
-    MI: { port: "New York",  cost: 1630 },
-    MN: { port: "New York",  cost: 1840 },
-    MS: { port: "Houston",   cost: 1580 },
-    MO: { port: "Houston",   cost: 1695 },
-    MT: { port: "Houston",   cost: 2565 },
-    NE: { port: "Houston",   cost: 1875 },
-    NV: { port: "Houston",   cost: 2400 },
-    NH: { port: "New York",  cost: 1675 },
-    NJ: { port: "New York",  cost: 1570 },
-    NM: { port: "Houston",   cost: 1765 },
-    NY: { port: "New York",  cost: 1500 },
-    OH: { port: "New York",  cost: 1690 },
-    OK: { port: "Houston",   cost: 1630 },
-    OR: { port: "Houston",   cost: 2640 },
-    PA: { port: "New York",  cost: 1650 },
-    RI: { port: "New York",  cost: 1590 },
-    TX: { port: "Houston",   cost: 1500 },
-    TN: { port: "Savannah",  cost: 1650 },
-    UT: { port: "Houston",   cost: 2470 },
-    VT: { port: "New York",  cost: 1620 },
-    VA: { port: "New York",  cost: 1545 },
-    WV: { port: "New York",  cost: 1595 },
-    DC: { port: "New York",  cost: 1565 },
-    WI: { port: "New York",  cost: 1680 },
-    WY: { port: "Houston",   cost: 2175 },
-  };
-  return map[s] ?? { port: "De confirmat", cost: 0 };
-}
-
-// ── Romania transport cost by body type ────────────────────────────────────────
-function getRoTransportCost(bodyType?: string): number {
-  const b = (bodyType || "").toLowerCase();
-  if (b.includes("pickup") || b.includes("truck")) return 1100;
-  if (b.includes("suv") || b.includes("crossover") || b.includes("van") || b.includes("minivan")) return 900;
-  return 850;
-}
-
 // ── Cost calculator sidebar ────────────────────────────────────────────────────
 function CostCalculator({
   vehicle,
@@ -525,9 +438,6 @@ function CostCalculator({
   vehicle: VehicleDetail;
 }) {
   const isSalvage = vehicle.titleType?.toLowerCase().includes("salvage");
-  const transportInfo = getTransportInfo(vehicle.location || vehicle.state || "");
-  const roTransportCost = getRoTransportCost(vehicle.bodyType);
-
   const isHybridOrElectric = ["electric", "hybrid", "plug-in"].some(
     (k) => (vehicle.fuelType || "").toLowerCase().includes(k)
   );
@@ -539,29 +449,20 @@ function CostCalculator({
   const [includeInsurance, setIncludeInsurance] = useState(false);
   const [includeRoTransport, setIncludeRoTransport] = useState(true);
 
-  // ── COSTURI SUA ──
-  const buyerFee = auctionFee(bidPrice, vehicle.platform);
-  const portTax = includePortTax ? 400 : 0;
-  const usaTransport = transportInfo.cost;
-  const salvageTitleCost = includeSalvageTitle ? 550 : 0;
-  const exportDocs = 300;
-  const totalUSA = bidPrice + buyerFee + portTax + usaTransport + salvageTitleCost + exportDocs;
-
-  // Valoare declarație vamală = Total SUA (USD), convertit în EUR
-  const cifEUR = totalUSA * eurUsdRate;
-
-  // ── COSTURI UE ──
-  const insurance = includeInsurance ? cifEUR * 0.01 : 0;
-  const customsDuty = cifEUR * 0.10;
-  const tva = (cifEUR + customsDuty) * 0.21;
-  const commissionMCSUA = 1000;
-  const portHandling = 500;
-  const roTransport = includeRoTransport ? roTransportCost : 0;
-
-  const totalEU = insurance + customsDuty + tva + commissionMCSUA + portHandling + roTransport;
-
-  // TOTAL GENERAL = Total SUA în EUR + Total UE
-  const totalGeneral = cifEUR + totalEU;
+  // Toate cifrele vin din modulul comun ca să fie IDENTICE cu chatbot-ul.
+  const {
+    buyerFee, portTax, usaTransport, salvageTitleCost, exportDocs, totalUSA,
+    cifEUR, insurance, customsDuty, tva, commissionMCSUA, portHandling,
+    roTransport, totalEU, totalGeneral, transportPort, usaTransportAvailable,
+    roTransportCost,
+  } = computeImportCost(vehicle, {
+    bidPrice,
+    eurUsdRate,
+    includeSalvageTitle,
+    includePortTax,
+    includeInsurance,
+    includeRoTransport,
+  });
 
   const fmt = (n: number, currency = "€") =>
     `${currency}${Math.round(n).toLocaleString("ro-RO")}`;
@@ -648,8 +549,8 @@ function CostCalculator({
           <CostRow
             num={3}
             label="Transport SUA → Rotterdam"
-            sublabel={`${transportInfo.port} · 4-6 săptămâni`}
-            value={transportInfo.cost > 0 ? fmtUSD(usaTransport) : "De confirmat"}
+            sublabel={`${transportPort} · 4-6 săptămâni`}
+            value={usaTransportAvailable ? fmtUSD(usaTransport) : "De confirmat"}
           />
           <CheckRow
             num={4}
@@ -1247,6 +1148,7 @@ export default function VehicleDetailPage() {
                   <p className="text-4xl font-extrabold text-accent">
                     ${vehicle.estimatedBid.toLocaleString("ro-RO")}
                   </p>
+                  <AveragePriceBadge make={vehicle.make} model={vehicle.model} />
                   {vehicle.buyNow && (
                     <p className="text-sm text-green-600 font-semibold mt-1">
                       Preț cumpărare imediată: ${vehicle.buyNow.toLocaleString("ro-RO")}
@@ -1376,6 +1278,46 @@ function QuickFact({
       </div>
       <p className="text-[10px] text-slate-400 uppercase tracking-wide font-medium">{label}</p>
       <p className="text-xs font-bold text-primary mt-0.5">{value}</p>
+    </div>
+  );
+}
+
+// ── Cost helpers (auctionFee, getTransportInfo, getRoTransportCost, computeImportCost)
+// live in the shared module src/lib/import-cost.ts so the vehicle page and the
+// chatbot calculator always produce identical numbers.
+
+function AveragePriceBadge({ make, model }: { make: string; model: string }) {
+  const [stats, setStats] = useState<{
+    available: boolean;
+    min?: number;
+    max?: number;
+    avg?: number;
+    count?: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!make) return;
+    const p = new URLSearchParams({ make });
+    if (model) p.set("model", model);
+    fetch(`/api/vehicles/stats?${p.toString()}`)
+      .then(r => r.json())
+      .then(setStats)
+      .catch(() => {});
+  }, [make, model]);
+
+  if (!stats?.available) return null;
+
+  return (
+    <div className="inline-flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-sm mt-3">
+      <span className="text-slate-400 text-xs">
+        ${stats.min?.toLocaleString("ro-RO")} – ${stats.max?.toLocaleString("ro-RO")}
+      </span>
+      <span className="text-slate-300">·</span>
+      <span className="font-bold text-primary">
+        Medie ${stats.avg?.toLocaleString("ro-RO")}
+      </span>
+      <span className="text-slate-300">·</span>
+      <span className="text-slate-400 text-xs">{stats.count} vânzări recente</span>
     </div>
   );
 }
