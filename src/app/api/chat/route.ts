@@ -36,26 +36,25 @@ DESPRE MC SUA:
 PROCESUL PAS CU PAS:
 1. Client alege mașina sau spune ce vrea → MC SUA consultă și caută
 2. MC SUA participă la licitație Copart/IAAI
-3. Transport yard SUA → port (~$550)
-4. Transport maritim → Rotterdam (~$1.050, 17-20 zile)
-5. Vămuire Rotterdam: taxă vamală 10% + TVA 21% din valoarea CIF
-6. Descărcare container: 500€
-7. Transport Rotterdam → România: 850€ (opțional)
-8. Reparație la service parteneri
-9. Omologare RAR + înmatriculare completă
+3. Transport SUA → Rotterdam (variabil pe stat, ~4-6 săptămâni)
+4. Vămuire Rotterdam: taxă vamală 10% + TVA 21% din valoarea CIF
+5. Descărcare container: 500€
+6. Transport Rotterdam → România: 850€ (opțional)
+7. Reparație la service parteneri
+8. Omologare RAR + înmatriculare completă
 
 COSTURI STANDARD:
-- Taxe licitație Copart: de la $25 (bid<$100) până la 7% (bid>$12.000)
-- Taxe licitație IAAI: de la $25 (bid<$100) până la 6.5% (bid>$15.000)
-- Schimbare certificat salvage title: $480
-- Transport port SUA: ~$550
-- Transport maritim: ~$1.050
+- Taxe licitație: 10% (IAAI) / 12% (Copart) din preț, minim $600
+- Schimbare certificat salvage title: $550
+- Transport SUA → Rotterdam: variabil pe stat, ~$1.500–$2.600
+- Documentație export: $300
+- Taxă port SUA (doar hibrid/electric): $400
 - Descărcare container Rotterdam: 500€
 - Comision MC SUA: 1.000€
-- Transport România: 850€
+- Transport România: 850€ (sedan), 900€ (SUV), 1.100€ (pickup)
 - Taxă vamală: 10% din CIF
-- TVA Rotterdam: 21% din CIF
-- Asigurare transport: 2.90% din CIF (opțional)
+- TVA Rotterdam: 21% din (CIF + taxă vamală)
+- Asigurare transport maritim: 1% din CIF (opțional)
 
 REGULI IMPORTANTE:
 - NU ești service autorizat RAR — omologarea se face LA RAR
@@ -208,7 +207,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     const lines = shown.map((v: any) => {
       const vin = v.vin || v.lot_number;
       const buyNow = buyNowOf(v);
-      const priceStr = buyNow > 0 ? `Buy Now ${buyNow.toLocaleString()}` : `Bid ${bidOf(v).toLocaleString()}`;
+      const priceStr = buyNow > 0 ? "Buy Now $" + buyNow.toLocaleString() : "Bid $" + bidOf(v).toLocaleString();
       const loc = typeof v.location === "string" ? v.location : (v.location?.display || "");
       const km = odoKmOf(v);
       const odoStr = km ? `${km.toLocaleString()} km` : "km necunoscut";
@@ -295,7 +294,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 
     const r = computeImportCost(vehicleForCalc, opts);
     const eur = (n: number) => `€${Math.round(n).toLocaleString("ro-RO")}`;
-    const usd = (n: number) => `${Math.round(n).toLocaleString("ro-RO")}`;
+    const usd = (n: number) => "$" + Math.round(n).toLocaleString("ro-RO");
 
     const usaLines: string[] = [
       `- Preț lot: ${usd(r.bidPrice)}`,
@@ -376,7 +375,7 @@ Stare: ${cond.run_condition ?? v.run_condition ?? "-"}
 Chei: ${cond.key ?? (v.has_key ? "Da" : "-")}
 Motor: ${specs.engine || "-"} | ${specs.fuel_type || v.fuel_type || "-"} | ${specs.transmission || v.transmission || "-"}
 Locație: ${loc || "-"}
-Preț: ${Number(bid).toLocaleString()}${pr.buy_now_usd ? " (Buy Now $" + Number(pr.buy_now_usd).toLocaleString() + ")" : ""}
+Preț: ${"$"}${Number(bid).toLocaleString()}${pr.buy_now_usd ? " (Buy Now $" + Number(pr.buy_now_usd).toLocaleString() + ")" : ""}
 Pagina: [vezi pe mcsua.ro](https://mcsua.ro/catalog/${slug})`;
   }
 
