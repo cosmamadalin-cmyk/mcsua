@@ -828,6 +828,7 @@ function CatalogContent() {
   const fetchVehicles = useCallback(async () => {
     setIsLoading(true); setError(null);
     try {
+      const buyNowPriceFilter = filters.lotStatus === "Buy Now" && (!!filters.priceMin || !!filters.priceMax);
       const p = new URLSearchParams();
       const cursor = cursorsRef.current[page] ?? "";
       if (cursor) p.set("cursor", cursor);
@@ -840,8 +841,10 @@ function CatalogContent() {
       if (filters.vehicleType) p.set("type", filters.vehicleType);
       if (filters.yearFrom) p.set("year_from", filters.yearFrom);
       if (filters.yearTo) p.set("year_to", filters.yearTo);
-      if (filters.priceMin) p.set("price_min", filters.priceMin);
-      if (filters.priceMax) p.set("price_max", filters.priceMax);
+      if (!buyNowPriceFilter) {
+        if (filters.priceMin) p.set("price_min", filters.priceMin);
+        if (filters.priceMax) p.set("price_max", filters.priceMax);
+      }
       if (filters.odoFrom) p.set("odometer_from", filters.odoFrom);
       if (filters.odoTo) p.set("odometer_to", filters.odoTo);
       if (filters.engineSizeFrom) p.set("engine_size_from", filters.engineSizeFrom);
@@ -858,17 +861,25 @@ function CatalogContent() {
       if (filters.hasKey) p.set("has_key", filters.hasKey);
       if (filters.titleType) p.set("sale_document_type", filters.titleType);
       p.set("page", String(page));
-      p.set("per_page", String(PER_PAGE));
+      p.set("per_page", String(buyNowPriceFilter ? 20 : PER_PAGE));
 
       const res = await fetch(`/api/vehicles?${p.toString()}`);
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Eroare ${res.status}`); }
       const data = await res.json();
       const rawList: unknown[] = data.data ?? data.vehicles ?? data.lots ?? data.results ?? [];
       const mapped = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
-      const tot = Number(data.meta?.total ?? data.total ?? rawList.length);
-      setVehicles(mapped); setTotal(tot); setTotalPages(Math.max(1, Math.ceil(tot / PER_PAGE) || 1));
+      let finalList = mapped;
+      if (buyNowPriceFilter) {
+        const min = filters.priceMin ? Number(filters.priceMin) : 0;
+        const max = filters.priceMax ? Number(filters.priceMax) : Infinity;
+        finalList = mapped.filter((v) => v.buyNow != null && v.buyNow >= min && v.buyNow <= max);
+      }
+      const tot = buyNowPriceFilter ? finalList.length : Number(data.meta?.total ?? data.total ?? rawList.length);
       const nextCursor = String(data.meta?.next_cursor ?? data.meta?.cursor ?? data.next_cursor ?? "");
-      if (nextCursor) cursorsRef.current[page + 1] = nextCursor;
+      if (!buyNowPriceFilter && nextCursor) cursorsRef.current[page + 1] = nextCursor;
+      setVehicles(finalList);
+      setTotal(tot);
+      setTotalPages(buyNowPriceFilter ? 1 : Math.max(1, Math.ceil(tot / PER_PAGE) || 1));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nu s-au putut încărca datele."); setVehicles([]); setTotal(0); setTotalPages(1);
     } finally { setIsLoading(false); }
