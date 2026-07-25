@@ -126,7 +126,7 @@ export function getRecommendation(input: RecoInput): Reco {
     case "clean":
       score += 2; reasons.push("Titlu curat"); break;
     case "salvage":
-      score -= 1; reasons.push("Titlu salvage — mașină avariată, necesită reparație și omologare RAR"); break;
+      score -= 1; reasons.push("Titlu salvage — mașină avariată, necesită schimbare certificat de titlu."); break;
     case "rebuilt":
       reasons.push("Titlu reconstruit — verifică istoricul și calitatea reparațiilor"); break;
     case "certificate":
