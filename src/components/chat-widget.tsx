@@ -30,6 +30,7 @@ export function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const openChat = () => { setOpen(true); setShowNudge(false); };
 
@@ -53,6 +54,36 @@ export function ChatWidget() {
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, open]);
   useEffect(() => { try { localStorage.setItem("mcsua_chat", JSON.stringify(messages.slice(-40))); } catch {} }, [messages]);
+
+  // Mobil: ajustează panoul la viewport-ul vizibil (tastatură) + blochează scroll-ul paginii
+  useEffect(() => {
+    const p = panelRef.current;
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    const isMobile = () => window.innerWidth < 640;
+    const apply = () => {
+      if (!p) return;
+      if (open && isMobile() && vv) {
+        p.style.height = vv.height + "px";
+        p.style.transform = `translateY(${vv.offsetTop}px)`;
+      } else {
+        p.style.height = "";
+        p.style.transform = "";
+      }
+      bottomRef.current?.scrollIntoView({ block: "end" });
+    };
+    if (open && isMobile()) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = "";
+    apply();
+    vv?.addEventListener("resize", apply);
+    vv?.addEventListener("scroll", apply);
+    window.addEventListener("resize", apply);
+    return () => {
+      vv?.removeEventListener("resize", apply);
+      vv?.removeEventListener("scroll", apply);
+      window.removeEventListener("resize", apply);
+      document.body.style.overflow = "";
+    };
+  }, [open]);
 
   const clearChat = () => {
     try { localStorage.removeItem("mcsua_chat"); } catch {}
@@ -81,7 +112,6 @@ export function ChatWidget() {
 
   return (
     <>
-      {/* Buton flotant + nudge (ascunse când chat-ul e deschis) */}
       <div className={`fixed bottom-6 right-6 z-50 ${open ? "hidden" : ""}`}>
         {showNudge && (
           <div className="absolute bottom-[4.5rem] right-0 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 p-3 pr-6 transition-all">
@@ -102,12 +132,12 @@ export function ChatWidget() {
         </div>
       </div>
 
-      {/* Panel chat — full-screen pe mobil, bulă pe desktop */}
       <div
-        className={`fixed z-50 bg-white flex flex-col transition-all duration-300
-          inset-0 w-full h-[100dvh] rounded-none
-          sm:inset-auto sm:bottom-6 sm:right-6 sm:w-[400px] sm:h-[580px] sm:max-w-[calc(100vw-2rem)] sm:rounded-2xl sm:border sm:border-slate-100 sm:shadow-2xl
-          ${open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"}`}
+        ref={panelRef}
+        className={`fixed z-50 bg-white flex flex-col transition-opacity duration-300
+          top-0 left-0 right-0 h-[100dvh] rounded-none
+          sm:top-auto sm:left-auto sm:bottom-6 sm:right-6 sm:w-[400px] sm:h-[580px] sm:max-w-[calc(100vw-2rem)] sm:rounded-2xl sm:border sm:border-slate-100 sm:shadow-2xl
+          ${open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       >
         <div className="bg-gradient-to-r from-primary to-slate-700 sm:rounded-t-2xl px-4 py-3 flex items-center justify-between flex-shrink-0" style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}>
           <div className="flex items-center gap-3">
@@ -132,7 +162,7 @@ export function ChatWidget() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               {m.role === "assistant" ? (
@@ -152,7 +182,6 @@ export function ChatWidget() {
               )}
             </div>
           ))}
-
           {messages.length === 1 && !loading && (
             <div className="flex flex-wrap gap-2 pt-1">
               {QUICK_REPLIES.map((q) => (
@@ -162,7 +191,6 @@ export function ChatWidget() {
               ))}
             </div>
           )}
-
           {loading && (
             <div className="flex justify-start">
               <div className="bg-slate-50 border border-slate-100 rounded-2xl rounded-bl-sm px-3 py-2.5">
@@ -173,7 +201,7 @@ export function ChatWidget() {
           <div ref={bottomRef} />
         </div>
 
-        <div className="px-3 pt-2 border-t border-slate-100 flex-shrink-0" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+        <div className="px-3 pt-2 border-t border-slate-100 flex-shrink-0 bg-white" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="flex gap-2 items-end">
             <textarea
               value={input}
@@ -181,8 +209,8 @@ export function ChatWidget() {
               onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               placeholder="Scrieți un mesaj... (ex: verifică un VIN, caută BMW X3 sub 10.000$)"
               disabled={loading}
-              rows={2}
-              className="flex-1 resize-none text-sm px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent disabled:opacity-50 bg-white max-h-32"
+              rows={1}
+              className="flex-1 resize-none text-sm px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-accent/30 focus:border-accent disabled:opacity-50 bg-white max-h-24"
             />
             <button type="button" onClick={() => send()} disabled={loading || !input.trim()} className="bg-accent hover:bg-accent/90 disabled:opacity-40 text-white rounded-xl p-3 transition-all flex items-center flex-shrink-0" aria-label="Trimite">
               <Send className="h-5 w-5" />
@@ -190,8 +218,6 @@ export function ChatWidget() {
           </div>
         </div>
       </div>
-
-      {/* stiluri deja aplicate; open-chat-button și hero rămân neatinse */}
     </>
   );
 }
