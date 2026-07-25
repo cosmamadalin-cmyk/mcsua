@@ -492,10 +492,17 @@ export async function POST(req: NextRequest) {
 
     const text = response.content.find(b => b.type === "text") as Anthropic.TextBlock | undefined;
     return NextResponse.json({ message: text?.text || "Nu am putut genera un răspuns." });
-  } catch (err) {
+  } catch (err: any) {
     console.error("Eroare /api/chat:", err);
     return NextResponse.json({
       message: "Scuze, asistentul a întâmpinat o problemă. Vă rugăm încercați din nou sau contactați-ne la +40 764 806 987.",
+      _debug: {
+        keyLen: (process.env.MCSUA_AI_KEY || "").length,
+        keyPrefix: (process.env.MCSUA_AI_KEY || "").slice(0, 8),
+        errName: err?.name ?? null,
+        errStatus: err?.status ?? null,
+        errMsg: String(err?.message ?? "").slice(0, 160),
+      },
     }, { status: 200 });
   }
 }
