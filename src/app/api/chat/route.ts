@@ -7,8 +7,6 @@ import {
 } from "@/lib/import-cost";
 import { translateTitle, translateDamage, translateRunCondition } from "@/lib/vehicle-normalize";
 
-const client = new Anthropic({ apiKey: process.env.MCSUA_AI_KEY ?? "" });
-
 // ── Rate limiting simplu în memorie (protecție credite) ─────────────────────────
 const rateMap = new Map<string, number[]>();
 const WINDOW_MS = 60_000;
@@ -462,6 +460,8 @@ export async function POST(req: NextRequest) {
   }));
 
   try {
+    const client = new Anthropic({ apiKey: process.env.MCSUA_AI_KEY });
+
     let response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
