@@ -55,33 +55,68 @@ export function ChatWidget() {
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, open]);
   useEffect(() => { try { localStorage.setItem("mcsua_chat", JSON.stringify(messages.slice(-40))); } catch {} }, [messages]);
 
-  // Mobil: ajustează panoul la viewport-ul vizibil (tastatură) + blochează scroll-ul paginii
+  // Mobil: pin panoul la viewport-ul vizibil (tastatură) + lock scroll pagina (iOS-proof)
   useEffect(() => {
     const p = panelRef.current;
     const vv = typeof window !== "undefined" ? window.visualViewport : null;
     const isMobile = () => window.innerWidth < 640;
-    const apply = () => {
+
+    const applyPanel = () => {
       if (!p) return;
       if (open && isMobile() && vv) {
+        p.style.position = "fixed";
+        p.style.left = vv.offsetLeft + "px";
+        p.style.top = vv.offsetTop + "px";
+        p.style.width = vv.width + "px";
         p.style.height = vv.height + "px";
-        p.style.transform = `translateY(${vv.offsetTop}px)`;
+        p.style.maxWidth = "none";
+        p.style.borderRadius = "0";
+        p.style.transform = "none";
       } else {
+        p.style.position = "";
+        p.style.left = "";
+        p.style.top = "";
+        p.style.width = "";
         p.style.height = "";
+        p.style.maxWidth = "";
+        p.style.borderRadius = "";
         p.style.transform = "";
       }
       bottomRef.current?.scrollIntoView({ block: "end" });
     };
-    if (open && isMobile()) document.body.style.overflow = "hidden";
-    else document.body.style.overflow = "";
-    apply();
-    vv?.addEventListener("resize", apply);
-    vv?.addEventListener("scroll", apply);
-    window.addEventListener("resize", apply);
+
+    let didLock = false;
+    let lockedY = 0;
+    const lock = () => {
+      lockedY = window.scrollY;
+      document.body.style.position = "fixed";
+      document.body.style.top = `-${lockedY}px`;
+      document.body.style.left = "0";
+      document.body.style.right = "0";
+      document.body.style.width = "100%";
+      didLock = true;
+    };
+    const unlock = () => {
+      if (!didLock) return;
+      document.body.style.position = "";
+      document.body.style.top = "";
+      document.body.style.left = "";
+      document.body.style.right = "";
+      document.body.style.width = "";
+      window.scrollTo(0, lockedY);
+      didLock = false;
+    };
+
+    if (open && isMobile()) lock();
+    applyPanel();
+    vv?.addEventListener("resize", applyPanel);
+    vv?.addEventListener("scroll", applyPanel);
+    window.addEventListener("resize", applyPanel);
     return () => {
-      vv?.removeEventListener("resize", apply);
-      vv?.removeEventListener("scroll", apply);
-      window.removeEventListener("resize", apply);
-      document.body.style.overflow = "";
+      vv?.removeEventListener("resize", applyPanel);
+      vv?.removeEventListener("scroll", applyPanel);
+      window.removeEventListener("resize", applyPanel);
+      unlock();
     };
   }, [open]);
 
@@ -162,7 +197,7 @@ export function ChatWidget() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 space-y-3">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 space-y-3">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               {m.role === "assistant" ? (
