@@ -429,6 +429,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Asistentul este temporar indisponibil (configurare). Vă rugăm contactați-ne la +40 764 806 987." }, { status: 200 });
   }
 
+  // Capturează pentru debug, apoi curăță variabilele injectate de platformă
+  const dbgBaseUrl = process.env.ANTHROPIC_BASE_URL ?? null;
+  const dbgHasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
+  delete process.env.ANTHROPIC_BASE_URL;
+  delete process.env.ANTHROPIC_AUTH_TOKEN;
+
   let body: unknown;
   try {
     body = await req.json();
@@ -460,7 +466,7 @@ export async function POST(req: NextRequest) {
   }));
 
   try {
-    const client = new Anthropic({ apiKey: process.env.MCSUA_AI_KEY });
+    const client = new Anthropic({ apiKey: process.env.MCSUA_AI_KEY, baseURL: "https://api.anthropic.com" });
 
     let response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
@@ -504,6 +510,8 @@ export async function POST(req: NextRequest) {
         errName: err?.name ?? null,
         errStatus: err?.status ?? null,
         errMsg: String(err?.message ?? "").slice(0, 160),
+        envBaseUrl: dbgBaseUrl,
+        hasAuthToken: dbgHasAuthToken,
       },
     }, { status: 200 });
   }
