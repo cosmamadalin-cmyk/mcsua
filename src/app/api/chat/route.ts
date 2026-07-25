@@ -499,6 +499,8 @@ export async function POST(req: NextRequest) {
       _debug: {
         keyLen: (process.env.MCSUA_AI_KEY || "").length,
         keyPrefix: (process.env.MCSUA_AI_KEY || "").slice(0, 8),
+        keyStart: (process.env.MCSUA_AI_KEY || "").slice(0, 14),
+        keyEnd: (process.env.MCSUA_AI_KEY || "").slice(-6),
         errName: err?.name ?? null,
         errStatus: err?.status ?? null,
         errMsg: String(err?.message ?? "").slice(0, 160),
