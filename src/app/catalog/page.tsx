@@ -654,10 +654,15 @@ function VehicleCard({ v }: { v: Vehicle }) {
               {tTitleType(v.titleType)}
             </span>
           </div>
-          <div className="mb-1.5">
+          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold ${recoCls}`}>
               {recoDot} {reco.label}
             </span>
+            {v.platform === "copart" && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-600 border border-amber-200">
+                Vânzător neconfirmat
+              </span>
+            )}
           </div>
           {v.damage && (
             <p className="text-xs text-amber-600 font-medium mb-2 flex items-center gap-1 truncate">
