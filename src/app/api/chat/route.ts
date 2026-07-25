@@ -429,9 +429,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: "Asistentul este temporar indisponibil (configurare). Vă rugăm contactați-ne la +40 764 806 987." }, { status: 200 });
   }
 
-  // Capturează pentru debug, apoi curăță variabilele injectate de platformă
-  const dbgBaseUrl = process.env.ANTHROPIC_BASE_URL ?? null;
-  const dbgHasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
+  // Curăță variabilele Anthropic injectate de platformă — altfel SDK-ul le
+  // prioritizează și trimite cererile către un proxy care respinge cheia.
   delete process.env.ANTHROPIC_BASE_URL;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
 
@@ -498,21 +497,10 @@ export async function POST(req: NextRequest) {
 
     const text = response.content.find(b => b.type === "text") as Anthropic.TextBlock | undefined;
     return NextResponse.json({ message: text?.text || "Nu am putut genera un răspuns." });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Eroare /api/chat:", err);
     return NextResponse.json({
       message: "Scuze, asistentul a întâmpinat o problemă. Vă rugăm încercați din nou sau contactați-ne la +40 764 806 987.",
-      _debug: {
-        keyLen: (process.env.MCSUA_AI_KEY || "").length,
-        keyPrefix: (process.env.MCSUA_AI_KEY || "").slice(0, 8),
-        keyStart: (process.env.MCSUA_AI_KEY || "").slice(0, 14),
-        keyEnd: (process.env.MCSUA_AI_KEY || "").slice(-6),
-        errName: err?.name ?? null,
-        errStatus: err?.status ?? null,
-        errMsg: String(err?.message ?? "").slice(0, 160),
-        envBaseUrl: dbgBaseUrl,
-        hasAuthToken: dbgHasAuthToken,
-      },
     }, { status: 200 });
   }
 }
