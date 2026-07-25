@@ -36,9 +36,10 @@ Cheia `MCSUA_AI_KEY` era corectă tot timpul (de aceea curl-ul local mergea).
       link-uri catalog corecte + deep-link filtrat
 
 ### De curățat ulterior
-- [ ] Scoate instrumentarea `_debug` din blocul catch (keyLen, keyPrefix,
-      keyStart, keyEnd, envBaseUrl, hasAuthToken) — expune date despre cheie
-      în răspunsul public dacă apare vreo eroare
+- [x] Scos instrumentarea `_debug` din blocul catch (commit `e2ff940`) —
+      catch-ul returnează acum doar mesajul prietenos, fără date despre cheie.
+      Fix-ul rămâne intact: `delete ANTHROPIC_BASE_URL/AUTH_TOKEN` + `baseURL` explicit.
+      Verificat live: mesaj simplu 200, tool call 200, `_debug` absent din răspuns.
 
 ## Pending Tasks
 - None
