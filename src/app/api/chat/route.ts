@@ -174,8 +174,8 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     if (input.fuel) p.append("fuel_type[]", String(input.fuel));
     if (input.drive) p.append("drive_type[]", String(input.drive));
     if (input.transmission) p.append("transmission[]", String(input.transmission));
-    if (saleType === "buy_now") p.set("lot_status", "Buy Now");
-    else if (saleType === "auction") p.set("lot_status", "Timed");
+    // Tipul de vânzare se decide LA NOI, după prezența unui preț Buy Now
+    // (lot_status=Timed e o categorie niche la Apibara, nu "licitație" în general).
     p.set("per_page", "20");
     p.set("lot_sub_status", "Open");
 
@@ -197,7 +197,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     if (saleType === "buy_now") {
       vehicles = vehicles.filter(v => buyNowOf(v) > 0 && (!priceMax || buyNowOf(v) <= priceMax)).sort((a, b) => buyNowOf(a) - buyNowOf(b));
     } else if (saleType === "auction") {
-      vehicles = vehicles.sort((a, b) => bidOf(a) - bidOf(b));
+      vehicles = vehicles.filter(v => !(buyNowOf(v) > 0)).sort((a, b) => bidOf(a) - bidOf(b));
     }
 
     if (!vehicles.length) return "Nu am găsit mașini cu aceste criterii momentan.";
@@ -227,7 +227,7 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     if (input.drive) cp.set("drive", String(input.drive));
     if (input.transmission) cp.set("transmission", String(input.transmission));
     if (saleType === "buy_now") cp.set("lotStatus", "Buy Now");
-    else if (saleType === "auction") cp.set("lotStatus", "Timed");
+    else if (saleType === "auction") cp.set("lotStatus", "Auction");
 
     const header = total > shown.length
       ? `Am găsit ${total} mașini care se potrivesc. Primele ${shown.length} (cele mai ieftine întâi):`
