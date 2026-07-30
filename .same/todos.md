@@ -41,6 +41,30 @@ Cheia `MCSUA_AI_KEY` era corectă tot timpul (de aceea curl-ul local mergea).
       Fix-ul rămâne intact: `delete ANTHROPIC_BASE_URL/AUTH_TOKEN` + `baseURL` explicit.
       Verificat live: mesaj simplu 200, tool call 200, `_debug` absent din răspuns.
 
+## Filtru tip vânzare redefinit (commit 0c1ec83)
+
+**Problema:** "Licitație" folosea `lot_status=Timed`, o categorie niche la Apibara,
+deci returna aproape nimic. Tipul real de vânzare se deduce din prezența unui
+preț **Buy Now**, nu din `lot_status`.
+
+**Catalog (`src/app/catalog/page.tsx`):**
+- [x] Buton "Licitație temporizată" → "Licitație", valoare `Timed` → `Auction`
+- [x] `isBuyNow` / `isAuction` / `saleTypeFilter` în `fetchVehicles`
+- [x] Nu se mai trimite `lot_status` la Apibara pentru aceste două cazuri
+- [x] `per_page=20`, filtrare client-side pe `buyNow > 0` (respectiv absența lui)
+- [x] Filtrul de preț pe Buy Now păstrat; `total = finalList.length`, `totalPages=1`
+
+**Chatbot (`src/app/api/chat/route.ts`):**
+- [x] `search_cars` nu mai setează `lot_status` (nici Buy Now, nici Timed)
+- [x] `auction` → `vehicles.filter(v => !(buyNowOf(v) > 0))` sortat după bid
+- [x] Deep-link catalog: `lotStatus=Auction`
+
+**Verificat live:**
+- [x] `bunx tsc --noEmit` curat, push `0c1ec83`, deploy pe https://mcsua.ro
+- [x] Bundle catalog live: 0 apariții `Timed`, logica nouă prezentă
+- [x] `/api/chat` BMW X5 2015+ licitație → 16 loturi, link `lotStatus=Auction`
+- [x] `/api/vehicles` control: 20 loturi → 4 Buy Now / 16 licitație (se potrivește)
+
 ## Pending Tasks
 - None
 

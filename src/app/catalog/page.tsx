@@ -833,6 +833,9 @@ function CatalogContent() {
       if (filters.search) p.set("s", filters.search);
       if (filters.platform) p.set("auction_type", filters.platform);
       if (filters.lotStatus && !saleTypeFilter) p.set("lot_status", filters.lotStatus);
+      // Buy Now are suport nativ la Apibara → cerem direct doar loturi buy-now.
+      // Licitația rămâne fetch-all + filtru client-side (fără buy_now).
+      if (isBuyNow) p.set("lot_status", "Buy Now");
       p.set("lot_sub_status", filters.subStatus || "Open");
       if (filters.make) p.set("make", filters.make);
       if (filters.model) p.set("model", filters.model);
@@ -889,7 +892,11 @@ function CatalogContent() {
     } finally { setIsLoading(false); }
   }, [filters, page]);
 
-  useEffect(() => { fetchVehicles(); }, [fetchVehicles, refreshTrigger]);
+  // Debounce: evită race condition la tastare în câmpul de căutare.
+  useEffect(() => {
+    const t = setTimeout(() => { fetchVehicles(); }, 400);
+    return () => clearTimeout(t);
+  }, [fetchVehicles]);
 
   // Sync filters to URL (persist on navigation)
   useEffect(() => {
