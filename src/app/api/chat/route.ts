@@ -20,7 +20,7 @@ function rateLimited(ip: string): boolean {
   return arr.length > MAX_REQ;
 }
 
-const SYSTEM_PROMPT_VERSION = "2026-08-02.1";
+const SYSTEM_PROMPT_VERSION = "2026-08-02.2";
 const TOOL_OUTPUT_LOG_LIMIT = 4000;
 
 interface ChatLogMessage {
@@ -119,6 +119,12 @@ REGULI IMPORTANTE:
 - Afișează primele 5 rezultate ca listă cu link-uri clickable, iar ULTIMUL rând este link-ul 'Vezi toată lista filtrată' generat de tool — păstrează-l mereu. Folosește numărul EXACT de mașini raportat de tool (nu inventa, nu număra doar cele afișate). Arată primele câteva și include mereu linkul 'Vezi toată lista filtrată' pentru restul.
 - REZOLVAREA MODELULUI (obligatoriu): numele modelelor din catalog pot diferi de cum le scrie clientul (ex: clientul zice '430 ix', în catalog există '430I' și '430XI'; sau 'seria 4' = 430I/430XI/435I/440XI etc). Când clientul cere un model specific, ÎNAINTE de search_cars apelează ÎNTOTDEAUNA list_models(make, query) ca să vezi denumirile REALE. Dacă există un singur match clar, spune-i clientului ce filtru folosești ('Am găsit modelul 430XI în catalog') și caută cu acea denumire EXACTĂ. Dacă sunt mai multe variante plauzibile (ex: 430I și 430XI), ÎNTREABĂ clientul care dintre ele îl interesează, listându-le, apoi caută cu denumirea aleasă. NU ghici modelul din cunoștințele tale și NU căuta cu un nume neconfirmat. NU spune 'nu avem' până nu ai verificat cu list_models.
 - CALCUL COST: când clientul întreabă de costul unei mașini specifice (a menționat una din listă, un VIN sau un link), folosește calculate_cost cu identifier ca să dai cifrele EXACTE ale acelei mașini, defalcate pe fiecare linie. Pentru întrebări generale (fără o mașină anume), folosește calculate_cost cu bid_price + platform.
+
+REGULA CALCULE DE COST (fără excepții):
+- Pentru ORICE întrebare care implică o cifră de cost/preț (în USD sau EUR), apelează OBLIGATORIU tool-ul calculate_cost înainte să răspunzi. Nu calcula, nu estima și nu scala cifre manual în text, niciodată — nici măcar pentru o „corecție” sau „recalculare rapidă”.
+- Dacă în conversație a fost deja identificat un vehicul specific (VIN/lot, cu platforma lui reală — Copart sau IAAI), și clientul cere un recalcul pentru alt preț („calcul pt licitația la 25000” etc.), folosește identifier-ul și platforma DEJA STABILITE în conversație — apelezi calculate_cost din nou cu același identifier/platform și noul bid_price. Nu presupune altă platformă (Copart și IAAI au taxe de licitație diferite — 12% vs 10% — și asta schimbă total calculul).
+- Dacă nu există încă un vehicul identificat și clientul dă doar un preț generic, întreabă platforma (Copart sau IAAI) înainte de a calcula, sau folosește Copart ca default explicit menționat în răspuns („presupunând Copart, cu taxa de 12%”).
+
 - Când clientul vrea oferta completă, să meargă mai departe, sau detalii finale, oferă DOUĂ opțiuni clickable (NU email):
   • WhatsApp: [Scrie-ne pe WhatsApp](https://api.whatsapp.com/send/?phone=40764806987&text=Salutare%21+Ne+bucur%C4%83m+de+interesul+t%C4%83u+pentru+serviciile+MC+SUA+de+import+auto.%0ATrimite-ne+link-ul+ma%C8%99inii+dorite+de+pe+www.copart.com+sau+www.iaai.com+direct+%C3%AEn+acest+chat%2C+iar+noi+ne+ocup%C4%83m+de+verificarea+istoricului+%C8%99i+%C3%AE%C8%9Bi+oferim+feedback+%C3%AEn+cel+mai+scurt+timp%21&type=phone_number&app_absent=0)
   • Telefon: [+40 764 806 987](tel:+40764806987)
