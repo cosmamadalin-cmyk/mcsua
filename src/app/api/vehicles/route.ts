@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   if (s) params.set("s", s);
 
   // Pagination
-  const perPage = Math.min(Number(searchParams.get("per_page") || 12), 20);
+  const perPage = Math.min(Number(searchParams.get("per_page") || 12), 100);
   params.set("per_page", String(perPage));
   if (searchParams.get("cursor")) params.set("cursor", searchParams.get("cursor")!);
 

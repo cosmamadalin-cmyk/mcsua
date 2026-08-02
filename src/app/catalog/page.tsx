@@ -828,8 +828,9 @@ function CatalogContent() {
       const saleTypeFilter = isBuyNow || isAuction;
       const buyNowPriceFilter = isBuyNow && (!!filters.priceMin || !!filters.priceMax);
       const p = new URLSearchParams();
-      const cursor = cursorsRef.current[page] ?? "";
+      const cursor = saleTypeFilter ? "" : (cursorsRef.current[page] ?? "");
       if (cursor) p.set("cursor", cursor);
+
       if (filters.search) p.set("s", filters.search);
       if (filters.platform) p.set("auction_type", filters.platform);
       if (filters.lotStatus && !saleTypeFilter) p.set("lot_status", filters.lotStatus);
@@ -861,14 +862,40 @@ function CatalogContent() {
       if (filters.cylinders) p.append("cylinders[]", filters.cylinders);
       if (filters.hasKey) p.set("has_key", filters.hasKey);
       if (filters.titleType) p.set("sale_document_type", filters.titleType);
-      p.set("page", String(page));
-      p.set("per_page", String(saleTypeFilter ? 20 : PER_PAGE));
+      if (!saleTypeFilter) p.set("page", String(page));
+      const saleTypePerPage = 100;
+      p.set("per_page", String(saleTypeFilter ? saleTypePerPage : PER_PAGE));
 
-      const res = await fetch(`/api/vehicles?${p.toString()}`);
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Eroare ${res.status}`); }
-      const data = await res.json();
-      const rawList: unknown[] = data.data ?? data.vehicles ?? data.lots ?? data.results ?? [];
-      const mapped = Array.isArray(rawList) ? rawList.map(mapApiVehicle) : [];
+      const fetchPage = async (params: URLSearchParams) => {
+        const res = await fetch(`/api/vehicles?${params.toString()}`);
+        if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Eroare ${res.status}`); }
+        return res.json();
+      };
+
+      const firstData = await fetchPage(p);
+      const allRaw: unknown[] = [];
+      const appendRaw = (data: any) => {
+        const list: unknown[] = data.data ?? data.vehicles ?? data.lots ?? data.results ?? [];
+        if (Array.isArray(list)) allRaw.push(...list);
+        return list;
+      };
+      const firstRaw = appendRaw(firstData);
+      const apiTotal = Number(firstData.meta?.total ?? firstData.total ?? firstRaw.length);
+      let nextCursor = String(firstData.meta?.next_cursor ?? firstData.meta?.cursor ?? firstData.next_cursor ?? "");
+
+      if (saleTypeFilter) {
+        const maxPages = 25;
+        for (let fetchPageIndex = 2; fetchPageIndex <= maxPages && nextCursor; fetchPageIndex += 1) {
+          const pageParams = new URLSearchParams(p);
+          pageParams.set("cursor", nextCursor);
+          const pageData = await fetchPage(pageParams);
+          const pageRaw = appendRaw(pageData);
+          nextCursor = String(pageData.meta?.next_cursor ?? pageData.meta?.cursor ?? pageData.next_cursor ?? "");
+          if (pageRaw.length === 0) break;
+        }
+      }
+
+      const mapped = allRaw.map(mapApiVehicle);
       let finalList = mapped;
       const hasBuyNow = (v: Vehicle) => v.buyNow != null && v.buyNow > 0;
       if (isBuyNow) {
@@ -881,12 +908,12 @@ function CatalogContent() {
       } else if (isAuction) {
         finalList = mapped.filter((v) => !hasBuyNow(v));
       }
-      const tot = saleTypeFilter ? finalList.length : Number(data.meta?.total ?? data.total ?? rawList.length);
-      const nextCursor = String(data.meta?.next_cursor ?? data.meta?.cursor ?? data.next_cursor ?? "");
+      const tot = saleTypeFilter ? finalList.length : apiTotal;
       if (!saleTypeFilter && nextCursor) cursorsRef.current[page + 1] = nextCursor;
-      setVehicles(finalList);
+      const visibleList = saleTypeFilter ? finalList.slice((page - 1) * PER_PAGE, page * PER_PAGE) : finalList;
+      setVehicles(visibleList);
       setTotal(tot);
-      setTotalPages(saleTypeFilter ? 1 : Math.max(1, Math.ceil(tot / PER_PAGE) || 1));
+      setTotalPages(Math.max(1, Math.ceil(tot / PER_PAGE) || 1));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Nu s-au putut încărca datele."); setVehicles([]); setTotal(0); setTotalPages(1);
     } finally { setIsLoading(false); }
