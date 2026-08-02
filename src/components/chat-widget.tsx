@@ -4,7 +4,32 @@ import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import { MessageCircle, X, Send, Loader2, Trash2 } from "lucide-react";
 
-interface Message { role: "user" | "assistant"; content: string; }
+interface Message { role: "user" | "assistant"; content: string; ts?: string; }
+
+function createConversationId(): string {
+  return `chat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function getStoredConversationId(): string {
+  if (typeof window === "undefined") return createConversationId();
+  try {
+    const existing = localStorage.getItem("mcsua_chat_conversation_id");
+    if (existing) return existing;
+    const created = createConversationId();
+    localStorage.setItem("mcsua_chat_conversation_id", created);
+    return created;
+  } catch {
+    return createConversationId();
+  }
+}
+
+function inferDevice(): "mobile" | "tablet" | "desktop" {
+  if (typeof window === "undefined") return "desktop";
+  const width = window.innerWidth;
+  if (width < 768) return "mobile";
+  if (width < 1024) return "tablet";
+  return "desktop";
+}
 
 const WELCOME: Message = {
   role: "assistant",
@@ -29,6 +54,7 @@ export function ChatWidget() {
   });
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [conversationId, setConversationId] = useState(() => getStoredConversationId());
   const bottomRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -121,14 +147,19 @@ export function ChatWidget() {
   }, [open]);
 
   const clearChat = () => {
-    try { localStorage.removeItem("mcsua_chat"); } catch {}
+    const nextId = createConversationId();
+    try {
+      localStorage.removeItem("mcsua_chat");
+      localStorage.setItem("mcsua_chat_conversation_id", nextId);
+    } catch {}
+    setConversationId(nextId);
     setMessages([WELCOME]);
   };
 
   const send = async (preset?: string) => {
     const text = (typeof preset === "string" ? preset : input).trim();
     if (!text || loading) return;
-    const newMessages: Message[] = [...messages, { role: "user", content: text }];
+    const newMessages: Message[] = [...messages, { role: "user", content: text, ts: new Date().toISOString() }];
     setMessages(newMessages);
     setInput("");
     setLoading(true);
@@ -136,12 +167,17 @@ export function ChatWidget() {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: newMessages }),
+        body: JSON.stringify({
+          messages: newMessages,
+          conversationId,
+          entryPage: `${window.location.pathname}${window.location.search}`,
+          device: inferDevice(),
+        }),
       });
       const data = await res.json();
-      setMessages(prev => [...prev, { role: "assistant", content: data.message || "Scuze, nu am putut genera un răspuns. Ne puteți contacta la +40 764 806 987." }]);
+      setMessages(prev => [...prev, { role: "assistant", content: data.message || "Scuze, nu am putut genera un răspuns. Ne puteți contacta la +40 764 806 987.", ts: new Date().toISOString() }]);
     } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: "Scuze, a apărut o eroare. Ne puteți contacta la +40 764 806 987." }]);
+      setMessages(prev => [...prev, { role: "assistant", content: "Scuze, a apărut o eroare. Ne puteți contacta la +40 764 806 987.", ts: new Date().toISOString() }]);
     } finally { setLoading(false); }
   };
 
