@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
-import { MessageCircle, X, Send, Loader2, Trash2 } from "lucide-react";
+import { MessageCircle, X, Send, Loader2, Trash2, ThumbsUp, ThumbsDown } from "lucide-react";
 
 interface Message { role: "user" | "assistant"; content: string; ts?: string; }
 
@@ -55,6 +55,7 @@ export function ChatWidget() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [conversationId, setConversationId] = useState(() => getStoredConversationId());
+  const [feedback, setFeedback] = useState<"up" | "down" | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -153,7 +154,17 @@ export function ChatWidget() {
       localStorage.setItem("mcsua_chat_conversation_id", nextId);
     } catch {}
     setConversationId(nextId);
+    setFeedback(null);
     setMessages([WELCOME]);
+  };
+
+  const submitFeedback = (value: "up" | "down") => {
+    setFeedback(value);
+    fetch("/api/chat/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ conversationId, value }),
+    }).catch(() => {});
   };
 
   const send = async (preset?: string) => {
@@ -235,19 +246,41 @@ export function ChatWidget() {
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-3 space-y-3">
           {messages.map((m, i) => (
-            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div key={i} className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}>
               {m.role === "assistant" ? (
-                <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed bg-slate-50 text-slate-700 border border-slate-100 rounded-bl-sm [&_p]:mb-2 [&_p:last-child]:mb-0">
-                  <ReactMarkdown
-                    remarkPlugins={[remarkBreaks]}
-                    components={{
-                      a: ({ href, children }) => (<a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline font-semibold">{children}</a>),
-                      strong: ({ children }) => <strong className="font-bold text-primary">{children}</strong>,
-                      ul: ({ children }) => <ul className="list-disc pl-4 my-1 space-y-1">{children}</ul>,
-                      ol: ({ children }) => <ol className="list-decimal pl-4 my-1 space-y-1">{children}</ol>,
-                    }}
-                  >{m.content}</ReactMarkdown>
-                </div>
+                <>
+                  <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed bg-slate-50 text-slate-700 border border-slate-100 rounded-bl-sm [&_p]:mb-2 [&_p:last-child]:mb-0">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkBreaks]}
+                      components={{
+                        a: ({ href, children }) => (<a href={href} target="_blank" rel="noopener noreferrer" className="text-accent underline font-semibold">{children}</a>),
+                        strong: ({ children }) => <strong className="font-bold text-primary">{children}</strong>,
+                        ul: ({ children }) => <ul className="list-disc pl-4 my-1 space-y-1">{children}</ul>,
+                        ol: ({ children }) => <ol className="list-decimal pl-4 my-1 space-y-1">{children}</ol>,
+                      }}
+                    >{m.content}</ReactMarkdown>
+                  </div>
+                  {i > 0 && !loading && (
+                    <div className="mt-1.5 ml-1 flex items-center gap-1 rounded-full bg-white border border-slate-100 px-1.5 py-1 shadow-sm">
+                      <button
+                        type="button"
+                        onClick={() => submitFeedback("up")}
+                        aria-label="Răspuns util"
+                        className={`p-1.5 rounded-full transition-colors ${feedback === "up" ? "bg-green-100 text-green-700" : "text-slate-400 hover:text-green-600 hover:bg-green-50"}`}
+                      >
+                        <ThumbsUp className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => submitFeedback("down")}
+                        aria-label="Răspuns problematic"
+                        className={`p-1.5 rounded-full transition-colors ${feedback === "down" ? "bg-red-100 text-red-700" : "text-slate-400 hover:text-red-600 hover:bg-red-50"}`}
+                      >
+                        <ThumbsDown className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap bg-accent text-white rounded-br-sm">{m.content}</div>
               )}
