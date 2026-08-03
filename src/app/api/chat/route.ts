@@ -20,7 +20,7 @@ function rateLimited(ip: string): boolean {
   return arr.length > MAX_REQ;
 }
 
-const SYSTEM_PROMPT_VERSION = "2026-08-02.3";
+const SYSTEM_PROMPT_VERSION = "2026-08-02.4";
 const TOOL_OUTPUT_LOG_LIMIT = 4000;
 
 interface ChatLogMessage {
@@ -125,8 +125,8 @@ REGULI IMPORTANTE:
 
 REGULA CALCULE DE COST (fără excepții):
 - Pentru ORICE întrebare care implică o cifră de cost/preț (în USD sau EUR), apelează OBLIGATORIU tool-ul calculate_cost înainte să răspunzi. Nu calcula, nu estima și nu scala cifre manual în text, niciodată — nici măcar pentru o „corecție” sau „recalculare rapidă”.
-- Dacă în conversație a fost deja identificat un vehicul specific (VIN/lot, cu platforma lui reală — Copart sau IAAI), și clientul cere un recalcul pentru alt preț („calcul pt licitația la 25000” etc.), folosește identifier-ul și platforma DEJA STABILITE în conversație — apelezi calculate_cost din nou cu același identifier/platform și noul bid_price. Nu presupune altă platformă (Copart și IAAI au taxe de licitație diferite — 12% vs 10% — și asta schimbă total calculul).
-- Dacă nu există încă un vehicul identificat și clientul dă doar un preț generic, întreabă platforma (Copart sau IAAI) înainte de a calcula, sau folosește Copart ca default explicit menționat în răspuns („presupunând Copart, cu taxa de 12%”).
+- Dacă în conversație a fost deja identificat un vehicul specific (VIN/lot, cu platforma lui reală — Copart sau IAAI), și clientul cere un recalcul pentru alt preț („calcul pt licitația la 25000" etc.), folosește identifier-ul și platforma DEJA STABILITE în conversație — apelezi calculate_cost din nou cu același identifier/platform și noul bid_price. Nu presupune altă platformă (Copart și IAAI au taxe de licitație diferite — 12% vs 10% — și asta schimbă total calculul).
+- Dacă nu există încă un vehicul identificat și clientul dă doar un preț generic, întreabă platforma (Copart sau IAAI) înainte de a calcula, sau folosește Copart ca default explicit menționat în răspuns („presupunând Copart, cu taxa de 12%").
 
 - Când clientul vrea oferta completă, să meargă mai departe, sau detalii finale, oferă DOUĂ opțiuni clickable (NU email):
   • WhatsApp: [Scrie-ne pe WhatsApp](https://api.whatsapp.com/send/?phone=40764806987&text=Salutare%21+Ne+bucur%C4%83m+de+interesul+t%C4%83u+pentru+serviciile+MC+SUA+de+import+auto.%0ATrimite-ne+link-ul+ma%C8%99inii+dorite+de+pe+www.copart.com+sau+www.iaai.com+direct+%C3%AEn+acest+chat%2C+iar+noi+ne+ocup%C4%83m+de+verificarea+istoricului+%C8%99i+%C3%AE%C8%9Bi+oferim+feedback+%C3%AEn+cel+mai+scurt+timp%21&type=phone_number&app_absent=0)
@@ -219,13 +219,79 @@ const tools: Anthropic.Tool[] = [
   },
 ];
 
+function normCatalogText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+const MAKE_ALIASES: Record<string, string> = {
+  mercedes: "MERCEDES-BENZ",
+  mercedesbenz: "MERCEDES-BENZ",
+  benz: "MERCEDES-BENZ",
+  mb: "MERCEDES-BENZ",
+};
+
+function normalizeMakeInput(make: unknown): string {
+  const raw = String(make || "").trim();
+  return MAKE_ALIASES[normCatalogText(raw)] || raw;
+}
+
+function normalizeModelForSearch(make: string, model: unknown): string {
+  const raw = String(model || "").trim();
+  if (!raw) return "";
+  const normalizedMake = normCatalogText(make);
+  const normalizedModel = normCatalogText(raw);
+  if (normalizedMake === "mercedesbenz") {
+    const classMatch = normalizedModel.match(/^([a-z])class$/);
+    if (classMatch) return classMatch[1].toUpperCase();
+  }
+  return raw;
+}
+
+function resolveMakeKey(modelsByMake: Record<string, string[]>, requestedMake: string): string {
+  const keys = Object.keys(modelsByMake);
+  const normalizedRequest = normCatalogText(requestedMake);
+  const alias = MAKE_ALIASES[normalizedRequest];
+  if (alias && Array.isArray(modelsByMake[alias])) return alias;
+
+  const exact = keys.find((key) => normCatalogText(key) === normalizedRequest);
+  if (exact) return exact;
+
+  const prefixMatches = keys
+    .filter((key) => {
+      const normalizedKey = normCatalogText(key);
+      return normalizedKey.startsWith(normalizedRequest) || normalizedRequest.startsWith(normalizedKey);
+    })
+    .sort((a, b) => (modelsByMake[b]?.length || 0) - (modelsByMake[a]?.length || 0));
+  return prefixMatches[0] || requestedMake;
+}
+
+function modelMatchesQuery(model: string, query: string): boolean {
+  const nm = normCatalogText(model);
+  const nq = normCatalogText(query);
+  if (!nq) return true;
+  if (nm === nq || nm.startsWith(nq) || nq.startsWith(nm)) return true;
+
+  const digits = (nq.match(/\d+/) || [""])[0];
+  if (digits && nm.startsWith(digits)) return true;
+
+  const classMatch = nq.match(/^([a-z])class$/);
+  if (classMatch) {
+    const letter = classMatch[1];
+    return nm === letter || nm === `${letter}class` || nm.startsWith(letter);
+  }
+
+  return nq.length >= 3 && nm.includes(nq);
+}
+
 async function executeTool(name: string, input: Record<string, unknown>): Promise<string> {
   const base = "https://mcsua.ro";
 
   if (name === "search_cars") {
     const p = new URLSearchParams();
-    if (input.make) p.set("make", String(input.make));
-    if (input.model) p.set("model", String(input.model));
+    const resolvedMake = input.make ? normalizeMakeInput(input.make) : "";
+    const resolvedModel = input.model ? normalizeModelForSearch(resolvedMake, input.model) : "";
+    if (resolvedMake) p.set("make", resolvedMake);
+    if (resolvedModel) p.set("model", resolvedModel);
     if (input.year_from) p.set("year_from", String(input.year_from));
     if (input.year_to) p.set("year_to", String(input.year_to));
     const priceMax = input.price_max ? Number(input.price_max) : 0;
@@ -234,8 +300,9 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     if (input.fuel) p.append("fuel_type[]", String(input.fuel));
     if (input.drive) p.append("drive_type[]", String(input.drive));
     if (input.transmission) p.append("transmission[]", String(input.transmission));
-    // Tipul de vânzare se decide LA NOI, după prezența unui preț Buy Now
-    // (lot_status=Timed e o categorie niche la Apibara, nu "licitație" în general).
+    // Buy Now are suport nativ la API; pentru licitații păstrăm fetch-ul general
+    // și filtrăm client-side loturile fără preț buy_now.
+    if (saleType === "buy_now") p.set("lot_status", "Buy Now");
     p.set("per_page", "20");
     p.set("lot_sub_status", "Open");
 
@@ -277,8 +344,8 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
 
     // Deep-link catalog cu nume camelCase (formatul pe care îl citește pagina catalog)
     const cp = new URLSearchParams();
-    if (input.make) cp.set("make", String(input.make));
-    if (input.model) cp.set("model", String(input.model));
+    if (resolvedMake) cp.set("make", resolvedMake);
+    if (resolvedModel) cp.set("model", resolvedModel);
     if (input.year_from) cp.set("yearFrom", String(input.year_from));
     if (input.year_to) cp.set("yearTo", String(input.year_to));
     if (priceMax) cp.set("priceMax", String(priceMax));
@@ -450,26 +517,36 @@ Pagina: [vezi pe mcsua.ro](https://mcsua.ro/catalog/${slug})`;
   }
 
   if (name === "list_models") {
-    const make = String(input.make || "").trim();
-    if (!make) return "Lipsește marca.";
+    const makeRaw = String(input.make || "").trim();
+    if (!makeRaw) return "Lipsește marca.";
     const res = await fetch(`${base}/api/vehicles/filters`);
     if (!res.ok) return "Nu am putut încărca lista de modele momentan.";
     const data = await res.json();
     const mm = data?.data?.make_model ?? data?.make_model ?? {};
-    const byMake = mm.models_by_make ?? {};
-    const key = Object.keys(byMake).find(k => k.toLowerCase() === make.toLowerCase()) || make;
+    const byMake: Record<string, string[]> = mm.models_by_make ?? {};
+    const requestedMake = normalizeMakeInput(makeRaw);
+    const key = resolveMakeKey(byMake, requestedMake);
     const models: string[] = Array.isArray(byMake[key]) ? byMake[key] : [];
-    if (!models.length) return `Nu am găsit lista de modele pentru ${make}.`;
-    const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
-    const q = norm(String(input.query || ""));
+    if (!models.length) return `Nu am găsit lista de modele pentru ${makeRaw}.`;
+
+    const queryRaw = String(input.query || "").trim();
+    const q = normCatalogText(queryRaw);
     if (!q) return `Modele ${key}: ${models.join(", ")}`;
-    const digits = (q.match(/\d+/) || [""])[0];
-    let matches = models.filter(m => {
-      const nm = norm(m);
-      return nm.includes(q) || q.includes(nm) || (digits && nm.startsWith(digits));
-    });
-    if (!matches.length) matches = models;
-    return `Modele ${key} relevante pentru "${input.query || ""}": ${matches.slice(0, 40).join(", ")}`;
+
+    const classMatch = q.match(/^([a-z])class$/);
+    if (classMatch) {
+      const bucket = classMatch[1].toUpperCase();
+      if (models.some((m) => normCatalogText(m) === bucket.toLowerCase())) {
+        const variants = models.filter((m) => modelMatchesQuery(m, queryRaw)).slice(0, 20);
+        return `Match clar pentru "${queryRaw}" la marca ${key}: folosește modelul exact "${bucket}" în search_cars. Variante apropiate: ${variants.join(", ")}`;
+      }
+    }
+
+    const matches = models.filter((m) => modelMatchesQuery(m, queryRaw));
+    if (!matches.length) {
+      return `Nicio potrivire clară pentru "${queryRaw}" la marca ${key}. Întreabă clientul să clarifice modelul. Modele disponibile (primele 40): ${models.slice(0, 40).join(", ")}`;
+    }
+    return `Modele ${key} relevante pentru "${queryRaw}": ${matches.slice(0, 40).join(", ")}`;
   }
 
   return "Tool necunoscut";
@@ -723,12 +800,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: assistantMessage }, { status: 200 });
   }
 
-  // Curăță variabilele Anthropic injectate de platformă — altfel SDK-ul le
-  // prioritizează și trimite cererile către un proxy care respinge cheia.
   delete process.env.ANTHROPIC_BASE_URL;
   delete process.env.ANTHROPIC_AUTH_TOKEN;
 
-  // Taie istoricul la ultimele 20 de mesaje pentru a controla costul tokenilor.
   const msgs = messages.slice(-20).map((m: { role: string; content: string }) => ({
     role: m.role as "user" | "assistant",
     content: m.content,
