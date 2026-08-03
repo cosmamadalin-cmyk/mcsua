@@ -302,25 +302,51 @@ async function executeTool(name: string, input: Record<string, unknown>): Promis
     if (input.fuel) p.append("fuel_type[]", String(input.fuel));
     if (input.drive) p.append("drive_type[]", String(input.drive));
     if (input.transmission) p.append("transmission[]", String(input.transmission));
+    const kmMax = input.odometer_max_km ? Number(input.odometer_max_km) : 0;
+    if (kmMax) p.set("odometer_to", String(Math.round(kmMax / 1.609)));
     // Buy Now are suport nativ la API; pentru licitații păstrăm fetch-ul general
     // și filtrăm client-side loturile fără preț buy_now.
     if (saleType === "buy_now") p.set("lot_status", "Buy Now");
-    p.set("per_page", "20");
+    const saleTypeFilter = saleType === "buy_now" || saleType === "auction";
+    p.set("per_page", saleTypeFilter ? "100" : "20");
     p.set("lot_sub_status", "Open");
 
-    const res = await fetch(`${base}/api/vehicles?${p}`);
-    const data = await res.json();
-    let vehicles: any[] = data.data || [];
+    const fetchVehiclesPage = async (params: URLSearchParams): Promise<{ vehicles: any[]; nextCursor: string }> => {
+      const res = await fetch(`${base}/api/vehicles?${params.toString()}`);
+      if (!res.ok) throw new Error(`Vehicles API error ${res.status}`);
+      const data = await res.json();
+      const list = data.data ?? data.vehicles ?? data.lots ?? data.results ?? [];
+      return {
+        vehicles: Array.isArray(list) ? list : [],
+        nextCursor: String(data.meta?.next_cursor ?? data.meta?.cursor ?? data.next_cursor ?? ""),
+      };
+    };
+
+    let vehicles: any[] = [];
+    let nextCursor = "";
+    const maxPages = saleTypeFilter ? 25 : 1;
+    for (let pageIndex = 1; pageIndex <= maxPages; pageIndex += 1) {
+      const pageParams = new URLSearchParams(p);
+      if (nextCursor) pageParams.set("cursor", nextCursor);
+      const pageData = await fetchVehiclesPage(pageParams);
+      vehicles = vehicles.concat(pageData.vehicles);
+      nextCursor = pageData.nextCursor;
+      if (!saleTypeFilter || !nextCursor || pageData.vehicles.length === 0) break;
+    }
 
     const buyNowOf = (v: any) => Number(v.pricing?.buy_now_usd ?? v.pricing?.buy_now_price ?? 0);
     const bidOf = (v: any) => Number(v.pricing?.current_bid_usd ?? v.pricing?.current_bid ?? 0);
     const odoKmOf = (v: any) => {
-      const mi = typeof v.odometer === "number" ? v.odometer : (v.odometer?.mi ?? v.odometer?.km ?? 0);
-      return mi ? Math.round(Number(mi) * 1.609) : 0;
+      const odo = v.odometer;
+      if (typeof odo === "number") return Math.round(Number(odo) * 1.609);
+      if (odo && typeof odo === "object") {
+        if (odo.km !== undefined && odo.km !== null) return Math.round(Number(odo.km)) || 0;
+        if (odo.mi !== undefined && odo.mi !== null) return Math.round(Number(odo.mi) * 1.609);
+      }
+      return 0;
     };
 
     // Kilometraj filtrat LA NOI, lenient: păstrăm mașinile cu km necunoscut (0)
-    const kmMax = input.odometer_max_km ? Number(input.odometer_max_km) : 0;
     if (kmMax) vehicles = vehicles.filter(v => { const km = odoKmOf(v); return km === 0 || km <= kmMax; });
 
     if (saleType === "buy_now") {
