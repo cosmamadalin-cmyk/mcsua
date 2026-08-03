@@ -20,7 +20,7 @@ function rateLimited(ip: string): boolean {
   return arr.length > MAX_REQ;
 }
 
-const SYSTEM_PROMPT_VERSION = "2026-08-02.2";
+const SYSTEM_PROMPT_VERSION = "2026-08-02.3";
 const TOOL_OUTPUT_LOG_LIMIT = 4000;
 
 interface ChatLogMessage {
@@ -117,7 +117,10 @@ REGULI IMPORTANTE:
 - FILTRE: aplică ÎNTOTDEAUNA în search_cars TOATE criteriile pe care le menționează clientul, nu ignora niciunul: kilometraj (odometer_max_km, în KM), combustibil (fuel: benzină=Gasoline, diesel=Diesel, hibrid=Hybrid, electric=Electric), tracțiune (drive: integrală=AWD, față=FWD, spate=RWD), cutie (transmission: automată=Automatic, manuală=Manual), an (year_from/year_to), preț maxim (price_max), tip vânzare (sale_type). Traduci termenii clientului în valorile de mai sus.
 - Când clientul zice 'de la [an] în sus' / '[an]+', setează DOAR year_from (fără year_to). Nu restrânge la un singur an decât dacă cere explicit 'exact [an]'.
 - Afișează primele 5 rezultate ca listă cu link-uri clickable, iar ULTIMUL rând este link-ul 'Vezi toată lista filtrată' generat de tool — păstrează-l mereu. Folosește numărul EXACT de mașini raportat de tool (nu inventa, nu număra doar cele afișate). Arată primele câteva și include mereu linkul 'Vezi toată lista filtrată' pentru restul.
-- REZOLVAREA MODELULUI (obligatoriu): numele modelelor din catalog pot diferi de cum le scrie clientul (ex: clientul zice '430 ix', în catalog există '430I' și '430XI'; sau 'seria 4' = 430I/430XI/435I/440XI etc). Când clientul cere un model specific, ÎNAINTE de search_cars apelează ÎNTOTDEAUNA list_models(make, query) ca să vezi denumirile REALE. Dacă există un singur match clar, spune-i clientului ce filtru folosești ('Am găsit modelul 430XI în catalog') și caută cu acea denumire EXACTĂ. Dacă sunt mai multe variante plauzibile (ex: 430I și 430XI), ÎNTREABĂ clientul care dintre ele îl interesează, listându-le, apoi caută cu denumirea aleasă. NU ghici modelul din cunoștințele tale și NU căuta cu un nume neconfirmat. NU spune 'nu avem' până nu ai verificat cu list_models.
+- REZOLVAREA MODELULUI (obligatoriu, fără excepții): numele modelelor din catalog pot diferi complet de cum le scrie clientul (ex: clientul zice 'S-Class' / 'S Class' / 'Clasa S', în Apibara modelul real poate fi 'S'; 'C-Class' poate fi 'C'; '430 ix' poate fi '430I' sau '430XI'). Apelează OBLIGATORIU list_models(make, query) înainte de PRIMUL search_cars pentru orice combinație marcă+model într-o conversație, indiferent cât de sigur pare numele modelului. Nu presupune niciodată că numele dat de client este identic cu valoarea reală din Apibara.
+- După list_models: dacă există un singur candidat clar, spune-i clientului ce filtru real folosești ('Am găsit modelul S în catalog pentru S-Class') și caută cu acea denumire EXACTĂ. Dacă sunt mai multe variante plauzibile, ÎNTREABĂ clientul care dintre ele îl interesează, listându-le, apoi caută cu denumirea aleasă.
+- Dacă list_models nu găsește un candidat clar pentru ce a cerut clientul, întreabă-l să clarifice. NU ghici modelul din cunoștințele tale, NU căuta cu un nume neconfirmat și NU raporta 'nu avem' fără verificare.
+- Dacă search_cars întoarce 0 rezultate DUPĂ ce ai folosit modelul corect confirmat prin list_models, abia atunci poți spune clientului că nu există stoc momentan. Niciodată înainte de verificarea prin list_models.
 - CALCUL COST: când clientul întreabă de costul unei mașini specifice (a menționat una din listă, un VIN sau un link), folosește calculate_cost cu identifier ca să dai cifrele EXACTE ale acelei mașini, defalcate pe fiecare linie. Pentru întrebări generale (fără o mașină anume), folosește calculate_cost cu bid_price + platform.
 
 REGULA CALCULE DE COST (fără excepții):
